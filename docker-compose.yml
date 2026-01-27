@@ -1,0 +1,151 @@
+version: '3.8'
+
+services:
+  # Backend API (Laravel)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mes_backend
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY=${APP_KEY}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-mes}
+      - DB_USERNAME=${DB_USERNAME:-mes}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+    volumes:
+      - backend_storage:/var/www/html/storage
+    networks:
+      - mes_network
+
+  # Frontend (Nuxt)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mes_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      - NUXT_PUBLIC_API_BASE=${API_BASE_URL:-http://backend:9000}
+    ports:
+      - "3000:3000"
+    networks:
+      - mes_network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: mes_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./backend/public:/var/www/html/public:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - mes_network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: mes_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_DATABASE:-mes}
+      - POSTGRES_USER=${DB_USERNAME:-mes}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - mes_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: mes_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - mes_network
+
+  # Queue Worker
+  queue:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mes_queue
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-mes}
+      - DB_USERNAME=${DB_USERNAME:-mes}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - QUEUE_CONNECTION=redis
+    command: php artisan queue:work --sleep=3 --tries=3
+    networks:
+      - mes_network
+
+  # Scheduler (Cron)
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mes_scheduler
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-mes}
+      - DB_USERNAME=${DB_USERNAME:-mes}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
+    networks:
+      - mes_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_storage:
+
+
+networks:
+  mes_network:
+    driver: bridge

@@ -1,0 +1,115 @@
+# Production Docker Compose for DigitalOcean
+# Uses pre-built images from GHCR
+
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/${GITHUB_REPOSITORY}/backend:latest
+    container_name: mes_backend
+    restart: always
+    depends_on:
+      - db
+      - redis
+    environment:
+      - APP_ENV=production
+      - APP_KEY=${APP_KEY}
+      - APP_DEBUG=false
+      - APP_URL=${APP_URL}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - API_KEYS=${API_KEYS}
+    volumes:
+      - backend_storage:/var/www/html/storage
+    networks:
+      - mes_network
+
+  frontend:
+    image: ghcr.io/${GITHUB_REPOSITORY}/frontend:latest
+    container_name: mes_frontend
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      - NUXT_PUBLIC_API_BASE=${APP_URL}/api
+    networks:
+      - mes_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: mes_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - mes_network
+
+  db:
+    image: postgres:15-alpine
+    container_name: mes_db
+    restart: always
+    environment:
+      - POSTGRES_DB=${DB_DATABASE}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mes_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: mes_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - mes_network
+
+  queue:
+    image: ghcr.io/${GITHUB_REPOSITORY}/backend:latest
+    container_name: mes_queue
+    restart: always
+    depends_on:
+      - db
+      - redis
+    environment:
+      - APP_ENV=production
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - QUEUE_CONNECTION=redis
+    command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+    networks:
+      - mes_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_storage:
+
+
+networks:
+  mes_network:
+    driver: bridge
