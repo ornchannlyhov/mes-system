@@ -1,0 +1,32 @@
+# =================================
+# Root .gitignore for Monorepo
+# =================================
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.fleet/
+.nova/
+.zed/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
