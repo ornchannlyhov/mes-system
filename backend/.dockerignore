@@ -1,0 +1,38 @@
+# Backend Docker ignore
+.git
+.gitignore
+.env
+.env.*
+*.md
+!README.md
+
+# Laravel dev
+/tests
+phpunit.xml
+.phpunit.result.cache
+.phpunit.cache
+
+# IDE
+.idea
+.vscode
+.fleet
+.nova
+.zed
+
+# Logs
+*.log
+storage/logs/*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies will be installed in container
+# /vendor  # Keep vendor for production build
+
+# Node (if using mix)
+node_modules
+
+# Docker
+Dockerfile*
+docker-compose*
