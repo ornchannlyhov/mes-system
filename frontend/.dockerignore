@@ -1,0 +1,33 @@
+# Frontend Docker ignore
+.git
+.gitignore
+*.md
+!README.md
+
+# Nuxt dev
+.nuxt
+.output
+
+# Dependencies - installed fresh in container
+node_modules
+
+# IDE
+.idea
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker
+Dockerfile*
+docker-compose*
+
+# Tests
+tests/
+coverage/
+*.test.ts
+*.spec.ts
