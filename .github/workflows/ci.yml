@@ -108,7 +108,7 @@ jobs:
       - name: Deploy to CapRover
         run: |
           npm install -g caprover
-          caprover deploy -h ${{ secrets.CAPROVER_SERVER }} -a ${{ secrets.CAPROVER_BACKEND_APP }} -t ${{ secrets.CAPROVER_BACKEND_TOKEN }} -p ./
+          NODE_TLS_REJECT_UNAUTHORIZED=0 caprover deploy -h ${{ secrets.CAPROVER_SERVER }} -a ${{ secrets.CAPROVER_BACKEND_APP }} -t ${{ secrets.CAPROVER_BACKEND_TOKEN }} -p ./
 
   # ============================================
   # Deploy Frontend to CapRover
@@ -128,4 +128,4 @@ jobs:
       - name: Deploy to CapRover
         run: |
           npm install -g caprover
-          caprover deploy -h ${{ secrets.CAPROVER_SERVER }} -a ${{ secrets.CAPROVER_FRONTEND_APP }} -t ${{ secrets.CAPROVER_FRONTEND_TOKEN }} -p ./
+          NODE_TLS_REJECT_UNAUTHORIZED=0 caprover deploy -h ${{ secrets.CAPROVER_SERVER }} -a ${{ secrets.CAPROVER_FRONTEND_APP }} -t ${{ secrets.CAPROVER_FRONTEND_TOKEN }} -p ./
