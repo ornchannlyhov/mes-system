@@ -104,7 +104,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="scrap in paginatedScraps" :key="scrap.id">
+            <tr v-for="scrap in scraps" :key="scrap.id">
               <td class="font-mono text-sm">#{{ scrap.id }}</td>
               <td>
                 <div class="flex items-center gap-3">
@@ -137,7 +137,7 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="scraps.length === 0">
+            <tr v-if="scraps.length === 0 && !scrapLoading">
               <td colspan="9">
                 <UiEmptyState 
                   title="No scrap records" 
@@ -152,9 +152,32 @@
               </td>
             </tr>
           </tbody>
+          <tbody v-if="scrapLoading">
+              <tr v-for="i in 5" :key="`skel-scrap-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gray-200 rounded-lg"></div>
+                    <div class="h-4 bg-gray-200 rounded w-32"></div>
+                  </div>
+                </td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                 <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-20"></div></td>
+              </tr>
+          </tbody>
         </table>
         </div>
-        <UiPagination v-model="currentPage" :total-items="scrapTotal" :page-size="pageSize" />
+        <UiPagination 
+          v-if="Math.ceil(scrapTotal / scrapPerPage) > 1"
+          v-model="scrapPage" 
+          :total-items="scrapTotal" 
+          :page-size="scrapPerPage" 
+        />
       </div>
     </div>
 
@@ -197,7 +220,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="variance in paginatedVariances" :key="variance.id">
+            <tr v-for="variance in variances" :key="variance.id">
               <td class="font-mono text-sm">MO #{{ variance.manufacturing_order_id }}</td>
               <td>
                 <div class="flex items-center gap-3">
@@ -233,8 +256,8 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="variances.length === 0">
-              <td colspan="7">
+            <tr v-if="variances.length === 0 && !varianceLoading">
+              <td colspan="8">
                 <UiEmptyState 
                   title="No material variances found" 
                   description="Material variances are automatically recorded when consumption differs from planned."
@@ -243,9 +266,31 @@
               </td>
             </tr>
           </tbody>
+          <tbody v-if="varianceLoading">
+              <tr v-for="i in 5" :key="`skel-var-${i}`" class="animate-pulse">
+                 <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                 <td class="px-6 py-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-gray-200 rounded-lg"></div>
+                        <div class="h-4 bg-gray-200 rounded w-32"></div>
+                    </div>
+                </td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-20"></div></td>
+              </tr>
+          </tbody>
         </table>
         </div>
-        <UiPagination v-model="variancePage" :total-items="varianceTotal" :page-size="pageSize" />
+        <UiPagination 
+          v-if="Math.ceil(varianceTotal / variancePerPage) > 1"
+          v-model="variancePage" 
+          :total-items="varianceTotal" 
+          :page-size="variancePerPage" 
+        />
       </div>
     </div>
 
@@ -288,7 +333,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="order in paginatedUnbuildOrders" :key="order.id">
+            <tr v-for="order in unbuildOrders" :key="order.id">
               <td class="font-medium">{{ order.name }}</td>
               <td>{{ order.product?.name || 'N/A' }}</td>
               <td>{{ Number(order.quantity) }}</td>
@@ -314,7 +359,7 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="unbuildOrders.length === 0">
+            <tr v-if="unbuildOrders.length === 0 && !unbuildLoading">
               <td colspan="8">
                 <UiEmptyState 
                   title="No unbuild orders" 
@@ -329,9 +374,26 @@
               </td>
             </tr>
           </tbody>
+           <tbody v-if="unbuildLoading">
+              <tr v-for="i in 5" :key="`skel-unbuild-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                 <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-20"></div></td>
+              </tr>
+          </tbody>
         </table>
         </div>
-        <UiPagination v-model="unbuildPage" :total-items="unbuildTotal" :page-size="pageSize" />
+        <UiPagination 
+          v-if="Math.ceil(unbuildTotal / unbuildPerPage) > 1"
+          v-model="unbuildPage" 
+          :total-items="unbuildTotal" 
+          :page-size="unbuildPerPage" 
+        />
       </div>
     </div>
 
@@ -484,6 +546,7 @@
 </template>
 
 <script setup lang="ts">
+import { useServerDataTable } from '~/composables/useServerDataTable'
 import type { ManufacturingOrder, Scrap, Consumption, UnbuildOrder, Product, Bom, Stock } from '~/types/models'
 
 const { $api } = useApi()
@@ -492,22 +555,63 @@ const masterStore = useMasterStore()
 const { formatDate, formatCurrency, getImageUrl } = useUtils()
 
 const activeTab = ref('scrap')
-const scraps = ref<Scrap[]>([])
-const variances = ref<Consumption[]>([])
-const unbuildOrders = ref<UnbuildOrder[]>([])
+
+// ----------------------------------------------------------------------
+// DATA TABLES
+// ----------------------------------------------------------------------
+
+// 1. Scrap Table
+const scrapTable = useServerDataTable<Scrap>({
+  url: 'scraps',
+  perPage: 10
+})
+const { 
+  items: scraps, 
+  total: scrapTotal, 
+  page: scrapPage, 
+  perPage: scrapPerPage, 
+  loading: scrapLoading, 
+  refresh: refreshScraps 
+} = scrapTable
+
+// 2. Variance Table
+const varianceTable = useServerDataTable<Consumption>({
+  url: 'consumptions',
+  perPage: 10,
+  initialFilters: { has_variance: true }
+})
+const { 
+  items: variances, 
+  total: varianceTotal, 
+  page: variancePage, 
+  perPage: variancePerPage, 
+  loading: varianceLoading, 
+  refresh: refreshVariances 
+} = varianceTable
+
+// 3. Unbuild Order Table
+const unbuildTable = useServerDataTable<UnbuildOrder>({
+  url: 'unbuild-orders',
+  perPage: 10
+})
+const { 
+  items: unbuildOrders, 
+  total: unbuildTotal, 
+  page: unbuildPage, 
+  perPage: unbuildPerPage, 
+  loading: unbuildLoading, 
+  refresh: refreshUnbuilds 
+} = unbuildTable
+
+
+// ----------------------------------------------------------------------
+// STATS & MASTER DATA
+// ----------------------------------------------------------------------
+
 const manufacturingOrders = ref<ManufacturingOrder[]>([])
 
 const products = computed(() => masterStore.products)
 const locations = computed(() => masterStore.locations)
-
-// Modals
-const showScrapModal = ref(false)
-const showLossModal = ref(false)
-const showUnbuildModal = ref(false)
-const saving = ref(false)
-const editingLoss = ref<Consumption | null>(null)
-const editingScrap = ref<Scrap | null>(null)
-const editingUnbuild = ref<UnbuildOrder | null>(null)
 
 // Dependent Data
 const productBoms = ref<Bom[]>([])
@@ -516,16 +620,6 @@ const moComponents = ref<Product[]>([])
 
 const finishedGoods = computed(() => products.value.filter(p => p.type === 'finished'))
 
-// Pagination & Totals
-const currentPage = ref(1)
-const variancePage = ref(1)
-const unbuildPage = ref(1)
-const pageSize = 10
-
-const scrapTotal = ref(0)
-const varianceTotal = ref(0)
-const unbuildTotal = ref(0)
-
 // Stats from Backend
 const stats = ref({
     scrap: { count: 0, quantity: 0, cost: 0, top_reason: '' },
@@ -533,14 +627,93 @@ const stats = ref({
     unbuild: { count: 0, pending: 0, completed: 0, quantity: 0 }
 })
 
+// Computed Stats Helpers
+const totalScrapQty = computed(() => stats.value.scrap.quantity)
+const totalScrapCost = computed(() => stats.value.scrap.cost)
+const topScrapReason = computed(() => stats.value.scrap.top_reason)
+
+const totalVarianceCost = computed(() => stats.value.variance.cost)
+const totalSavings = computed(() => stats.value.variance.savings)
+const overConsumptionCount = computed(() => stats.value.variance.over_consumption_count)
+
+const unbuildPendingCount = computed(() => stats.value.unbuild.pending)
+const unbuildCompletedCount = computed(() => stats.value.unbuild.completed)
+const totalUnbuildQty = computed(() => stats.value.unbuild.quantity)
+
+async function fetchStats() {
+    try {
+        const res = await $api<any>('/reporting/production-problems')
+        stats.value = res
+    } catch (e) {
+        console.error('Failed to fetch stats', e)
+    }
+}
+
+// ----------------------------------------------------------------------
+// MODALS & FORMS
+// ----------------------------------------------------------------------
+
+// Modals
+const showScrapModal = ref(false)
+const showLossModal = ref(false)
+const showUnbuildModal = ref(false)
+const showDeleteModal = ref(false) // Added for confirm delete
+const saving = ref(false)
+const deleting = ref(false) // Added for confirm delete loading
+
+const editingLoss = ref<Consumption | null>(null)
+const editingScrap = ref<Scrap | null>(null)
+const editingUnbuild = ref<UnbuildOrder | null>(null)
+
 // Forms
 const scrapForm = ref({ product_id: null as number | null, location_id: null as number | null, quantity: 1, reason: '' })
 const lossForm = ref({ manufacturing_order_id: null as number | null, product_id: null as number | null, qty_planned: 0, qty_consumed: 0 })
 const unbuildForm = ref({ product_id: null as number | null, bom_id: null as number | null, manufacturing_order_id: null as number | null, quantity: 1, reason: '' })
 
+// Delete Confirmation
+const deleteType = ref<'scrap' | 'variance' | 'unbuild'>('scrap')
+const deleteTarget = ref<any>(null)
+const deletingType = computed(() => deleteType.value) // Alias for template if needed
+
+function confirmDelete(type: 'scrap' | 'variance' | 'unbuild', item: any) {
+    deleteType.value = type
+    deleteTarget.value = item
+    showDeleteModal.value = true
+}
+
+async function executeDelete() {
+    if (!deleteTarget.value) return
+    deleting.value = true
+    try {
+        if (deleteType.value === 'scrap') {
+            await $api(`/scraps/${deleteTarget.value.id}`, { method: 'DELETE' })
+            toast.success('Scrap record deleted')
+            refreshScraps()
+        } else if (deleteType.value === 'variance') {
+             // Variance usually shouldn't be deleted manually if auto-generated, but maybe allowed for correction?
+             // Assuming endpoint exists or we revert? 
+             // Actually backend might not allow deleting consumption easily without reverting stock logic.
+             // For now assuming generic DELETE endpoint exists or user logic allows it.
+             await $api(`/consumptions/${deleteTarget.value.id}`, { method: 'DELETE' })
+             toast.success('Variance record deleted')
+             refreshVariances()
+        } else if (deleteType.value === 'unbuild') {
+             await $api(`/unbuild-orders/${deleteTarget.value.id}`, { method: 'DELETE' })
+             toast.success('Unbuild order deleted')
+             refreshUnbuilds()
+        }
+        await fetchStats()
+        showDeleteModal.value = false
+    } catch (e: any) {
+        toast.error(e.data?.message || 'Delete failed')
+    } finally {
+        deleting.value = false
+    }
+}
+
 const lossVariance = computed(() => lossForm.value.qty_consumed - lossForm.value.qty_planned)
 
-// Watchers for dependent filtering
+// Watchers
 watch(() => scrapForm.value.product_id, async (newVal) => {
     if (newVal && !editingScrap.value) {
         scrapForm.value.location_id = null
@@ -548,7 +721,6 @@ watch(() => scrapForm.value.product_id, async (newVal) => {
             const res = await $api<{ data: Stock[] }>(`/stocks?product_id=${newVal}`)
             productStocks.value = res.data || []
         } catch (e) {
-            console.error('Failed to fetch product stocks', e)
             productStocks.value = []
         }
     } else if (!newVal) {
@@ -565,8 +737,7 @@ watch(() => lossForm.value.manufacturing_order_id, async (newVal) => {
                  let bomId = mo.bom_id
                  if (!bomId) {
                      const res = await $api<{ data: Bom[] }>(`/boms?product_id=${mo.product_id}&is_active=1`)
-                     const boms = res?.data
-                     const firstBom = boms?.[0]
+                     const firstBom = res?.data?.[0]
                      if (firstBom) bomId = firstBom.id
                  }
 
@@ -579,7 +750,6 @@ watch(() => lossForm.value.manufacturing_order_id, async (newVal) => {
                      }
                  }
              } catch (e) {
-                 console.error('Failed to fetch MO components', e)
                  moComponents.value = []
              }
          }
@@ -595,13 +765,9 @@ watch(() => unbuildForm.value.product_id, async (newVal) => {
             const res = await $api<{ data: Bom[] }>(`/boms?product_id=${newVal}&is_active=1`)
             productBoms.value = res.data || []
             if (productBoms.value.length === 1 && !unbuildForm.value.bom_id) {
-                const firstBom = productBoms.value[0];
-                if (firstBom) {
-                    unbuildForm.value.bom_id = firstBom.id
-                }
+                unbuildForm.value.bom_id = productBoms.value[0]?.id || null
             }
         } catch (e) {
-            console.error('Failed to fetch BOMs', e)
             productBoms.value = []
         }
     } else {
@@ -609,73 +775,13 @@ watch(() => unbuildForm.value.product_id, async (newVal) => {
     }
 })
 
-// Pagination Watchers
-watch(currentPage, () => fetchScraps())
-watch(variancePage, () => fetchVariances())
-watch(unbuildPage, () => fetchUnbuilds())
-
-
-async function fetchStats() {
-    try {
-        const res = await $api<any>('/reporting/production-problems')
-        stats.value = res
-    } catch (e) {
-        console.error('Failed to fetch stats', e)
-    }
+// Cost Helper
+function getScrapCost(scrap: Scrap) {
+    if (scrap.cost) return scrap.cost
+    return (scrap.quantity || 0) * (scrap.product?.cost || 0)
 }
 
-async function fetchScraps() {
-    try {
-        const res = await $api<{ data: Scrap[], total: number }>(`/scraps?page=${currentPage.value}&per_page=${pageSize}`)
-        scraps.value = res.data || []
-        scrapTotal.value = res.total || res.data.length 
-        if ((res as any).meta) {
-            scrapTotal.value = (res as any).meta.total
-        } else if ((res as any).total) {
-            scrapTotal.value = (res as any).total
-        }
-    } catch (e) {
-        toast.error('Failed to fetch scraps')
-    }
-}
-
-async function fetchVariances() {
-    try {
-        const res = await $api<{ data: Consumption[], meta?: any }>(`/consumptions?has_variance=true&page=${variancePage.value}&per_page=${pageSize}`)
-        variances.value = res.data || []
-        if (res.meta) varianceTotal.value = res.meta.total
-    } catch (e) {
-        console.error(e)
-    }
-}
-
-async function fetchUnbuilds() {
-    try {
-        const res = await $api<{ data: UnbuildOrder[], meta?: any }>(`/unbuild-orders?page=${unbuildPage.value}&per_page=${pageSize}`)
-        unbuildOrders.value = res.data || []
-        if (res.meta) unbuildTotal.value = res.meta.total
-    } catch (e) {
-        console.error(e)
-    }
-}
-
-
-async function fetchData() {
-  try {
-    await Promise.all([
-      fetchScraps(),
-      fetchVariances(),
-      fetchUnbuilds(),
-      fetchStats(),
-      $api<{ data: ManufacturingOrder[] }>('/manufacturing-orders').then(res => manufacturingOrders.value = res.data || []),
-      masterStore.fetchProducts(),
-      masterStore.fetchLocations(),
-    ])
-  } catch (e) {
-    toast.error('Failed to fetch data')
-  }
-}
-
+// Actions
 function openScrapModal(scrap?: Scrap) {
     if (scrap) {
         editingScrap.value = scrap
@@ -709,7 +815,8 @@ async function saveScrap() {
         toast.success('Scrap recorded successfully')
     }
     showScrapModal.value = false
-    await Promise.all([fetchScraps(), fetchStats()])
+    refreshScraps()
+    fetchStats()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to record scrap')
   } finally {
@@ -726,6 +833,7 @@ function openLossModal(variance?: Consumption) {
             qty_planned: variance.qty_planned,
             qty_consumed: variance.qty_consumed
         }
+        // Logic to fetch MO components if editing...
         if (variance.manufacturing_order_id) {
             const mo = manufacturingOrders.value.find(m => m.id === variance.manufacturing_order_id)
              if (mo && mo.bom_id) {
@@ -749,13 +857,14 @@ async function saveLoss() {
   try {
     if (editingLoss.value) {
         await $api(`/consumptions/${editingLoss.value.id}`, { method: 'PUT', body: lossForm.value })
-        toast.success('Loss updated successfully')
+        toast.success('Loss updated')
     } else {
         await $api('/consumptions', { method: 'POST', body: lossForm.value })
-        toast.success('Loss recorded successfully')
+        toast.success('Loss recorded')
     }
     showLossModal.value = false
-     await Promise.all([fetchVariances(), fetchStats()])
+    refreshVariances()
+    fetchStats()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to record loss')
   } finally {
@@ -798,73 +907,22 @@ async function saveUnbuild() {
         toast.success('Unbuild order created')
     }
     showUnbuildModal.value = false
-    await Promise.all([fetchUnbuilds(), fetchStats()])
+    refreshUnbuilds()
+    fetchStats()
   } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to create unbuild order')
+    toast.error(e.data?.message || 'Failed to save unbuild order')
   } finally {
     saving.value = false
   }
 }
 
-function getScrapCost(scrap: Scrap): number {
-  return Number(scrap.quantity) * (scrap.product?.cost ?? 0)
-}
-
-// Client-side pagination logic removed - using direct array from offset
-// Just return the array as is, since it's already a single page
-const paginatedScraps = computed(() => scraps.value)
-const paginatedVariances = computed(() => variances.value)
-const paginatedUnbuildOrders = computed(() => unbuildOrders.value)
-
-// Stats are now from backend
-const totalScrapQty = computed(() => stats.value.scrap.quantity)
-const totalScrapCost = computed(() => stats.value.scrap.cost)
-const topScrapReason = computed(() => stats.value.scrap.top_reason)
-
-const overConsumptionCount = computed(() => stats.value.variance.over_consumption_count)
-const totalVarianceCost = computed(() => stats.value.variance.cost)
-const totalSavings = computed(() => stats.value.variance.savings)
-
-const unbuildPendingCount = computed(() => stats.value.unbuild.pending)
-const unbuildCompletedCount = computed(() => stats.value.unbuild.completed)
-const totalUnbuildQty = computed(() => stats.value.unbuild.quantity)
-
-
-const deletingType = ref('')
-const deletingItem = ref<any>(null)
-const showDeleteModal = ref(false)
-const deleting = ref(false)
-
-async function executeDelete() {
-  if (!deletingItem.value) return
-  deleting.value = true
-  try {
-    if (deletingType.value === 'scrap') {
-        await $api(`/scraps/${deletingItem.value.id}`, { method: 'DELETE' })
-        await Promise.all([fetchScraps(), fetchStats()])
-    } else if (deletingType.value === 'variance') {
-        await $api(`/consumptions/${deletingItem.value.id}`, { method: 'DELETE' })
-        await Promise.all([fetchVariances(), fetchStats()])
-    } else if (deletingType.value === 'unbuild') {
-        await $api(`/unbuild-orders/${deletingItem.value.id}`, { method: 'DELETE' })
-        await Promise.all([fetchUnbuilds(), fetchStats()])
-    }
-    toast.success('Record deleted')
-    showDeleteModal.value = false
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to delete record')
-  } finally {
-    deleting.value = false
-    deletingItem.value = null
-  }
-}
-// Fix confirmDelete to match template usage
-function confirmDelete(type: string, item: any) {
-  deletingType.value = type
-  deletingItem.value = item
-  showDeleteModal.value = true
-}
-
-
-onMounted(fetchData)
+onMounted(async () => {
+    // Tables auto-fetch
+    await Promise.all([
+      fetchStats(),
+      $api<{ data: ManufacturingOrder[] }>('/manufacturing-orders').then(res => manufacturingOrders.value = res.data || []),
+      masterStore.fetchProducts(),
+      masterStore.fetchLocations(),
+    ])
+})
 </script>

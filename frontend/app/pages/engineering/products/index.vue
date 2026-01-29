@@ -116,7 +116,7 @@
               </div>
             </td>
           </tr>
-          <tr v-if="filteredProducts.length === 0">
+          <tr v-if="filteredProducts.length === 0 && !loading">
             <td colspan="9">
               <UiEmptyState 
                 title="No products found" 
@@ -130,6 +130,19 @@
               </UiEmptyState>
             </td>
           </tr>
+        </tbody>
+        <tbody v-if="loading">
+             <tr v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="w-10 h-10 bg-gray-200 rounded"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-48"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-12"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-24"></div></td>
+             </tr>
         </tbody>
       </table>
       </div>
@@ -268,6 +281,7 @@ const editingProduct = ref<Product | null>(null)
 const saving = ref(false)
 const currentPage = ref(1)
 const pageSize = 10
+const loading = ref(true)
 
 // Detail view state
 const showDetailModal = ref(false)
@@ -340,10 +354,13 @@ function typeClass(type: string) {
 }
 
 async function fetchProducts() {
+  loading.value = true
   try {
     await masterStore.fetchProducts()
   } catch (e) {
     toast.error('Failed to fetch products')
+  } finally {
+    loading.value = false
   }
 }
 

@@ -1,26 +1,25 @@
 # Backend Dockerfile for Laravel
-FROM php:8.2-fpm-alpine
+FROM php:8.4-fpm
 
 # Install system dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     git \
     curl \
     libpng-dev \
-    libjpeg-turbo-dev \
-    freetype-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
     libzip-dev \
     zip \
     unzip \
-    oniguruma-dev \
-    icu-dev \
-    postgresql-dev \
-    linux-headers
+    libonig-dev \
+    libicu-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
     pdo \
-    pdo_mysql \
     pdo_pgsql \
     mbstring \
     exif \
@@ -32,8 +31,7 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     opcache
 
 # Install Redis extension
-RUN apk add --no-cache $PHPIZE_DEPS \
-    && pecl install redis \
+RUN pecl install redis \
     && docker-php-ext-enable redis
 
 # Install Composer

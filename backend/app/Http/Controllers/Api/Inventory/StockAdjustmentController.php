@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Api\Inventory;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Inventory\StoreStockAdjustmentRequest;
 use App\Models\StockAdjustment;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 
-class StockAdjustmentController extends Controller
+class StockAdjustmentController extends BaseController
 {
     public function __construct(
         protected StockService $stockService
@@ -21,29 +21,12 @@ class StockAdjustmentController extends Controller
     public function index(Request $request)
     {
         $query = StockAdjustment::with(['product', 'location', 'lot', 'user'])
-            ->orderBy('created_at', 'desc');
+            ->applyStandardFilters(
+                $request,
+                ['reference', 'notes'], // Searchable fields
+                ['reason', 'product_id', 'location_id', 'lot_id'] // Exact filters
+            );
 
-        // Filter by reason if provided
-        if ($request->has('reason')) {
-            $query->where('reason', $request->reason);
-        }
-
-        // Filter by product if provided
-        if ($request->has('product_id')) {
-            $query->where('product_id', $request->product_id);
-        }
-
-        // Filter by location if provided
-        if ($request->has('location_id')) {
-            $query->where('location_id', $request->location_id);
-        }
-
-        // Filter by lot if provided
-        if ($request->has('lot_id')) {
-            $query->where('lot_id', $request->lot_id);
-        }
-
-        // Filter by date range if provided
         if ($request->has('date_from')) {
             $query->whereDate('created_at', '>=', $request->date_from);
         }
@@ -51,9 +34,12 @@ class StockAdjustmentController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        return response()->json([
-            'data' => $query->get()
-        ]);
+        $counts = $this->getStatusCounts(StockAdjustment::query(), 'reason');
+
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 10)),
+            ['counts' => $counts]
+        );
     }
 
     /**
@@ -64,14 +50,9 @@ class StockAdjustmentController extends Controller
         try {
             $stock = $this->stockService->adjustStock($request->validated());
 
-            return response()->json([
-                'message' => 'Stock adjusted successfully',
-                'data' => $stock
-            ], 201);
+            return $this->success($stock, ['message' => 'Stock adjusted successfully'], 201);
         } catch (\InvalidArgumentException $e) {
-            return response()->json([
-                'message' => $e->getMessage()
-            ], 422);
+            return $this->error($e->getMessage(), 422);
         }
     }
 
@@ -80,9 +61,9 @@ class StockAdjustmentController extends Controller
      */
     public function show(StockAdjustment $stockAdjustment)
     {
-        return response()->json([
-            'data' => $stockAdjustment->load(['product', 'location', 'lot', 'user'])
-        ]);
+        return $this->success(
+            $stockAdjustment->load(['product', 'location', 'lot', 'user'])
+        );
     }
 
     /**
@@ -97,10 +78,10 @@ class StockAdjustmentController extends Controller
             'notes' => $request->input('notes'),
         ]);
 
-        return response()->json([
-            'message' => 'Stock adjustment updated successfully',
-            'data' => $stockAdjustment->load(['product', 'location', 'lot', 'user'])
-        ]);
+        return $this->success(
+            $stockAdjustment->load(['product', 'location', 'lot', 'user']),
+            ['message' => 'Stock adjustment updated successfully']
+        );
     }
 
     /**
@@ -108,12 +89,26 @@ class StockAdjustmentController extends Controller
      */
     public function destroy(StockAdjustment $stockAdjustment)
     {
-        // Note: Deleting adjustments is generally not recommended as it removes audit trail
-        // Consider implementing soft deletes or requiring special permissions
-        $stockAdjustment->delete();
+        // 1. Prevent deletion of manufacturing usage
+        if (in_array($stockAdjustment->reason, ['manufacturing_consumption', 'manufacturing_production'])) {
+            return $this->error('Cannot delete system-generated manufacturing adjustments.', 403);
+        }
 
-        return response()->json([
-            'message' => 'Stock adjustment deleted'
-        ]);
+        // 2. Revert Stock & Delete
+        \Illuminate\Support\Facades\DB::transaction(function () use ($stockAdjustment) {
+            $stock = \App\Models\Stock::where('product_id', $stockAdjustment->product_id)
+                ->where('location_id', $stockAdjustment->location_id)
+                ->where('lot_id', $stockAdjustment->lot_id)
+                ->first();
+
+            if ($stock) {
+                $stock->quantity -= $stockAdjustment->quantity;
+                $stock->save();
+            }
+
+            $stockAdjustment->delete();
+        });
+
+        return $this->success(null, ['message' => 'Stock adjustment deleted and stock reverted'], 204);
     }
 }

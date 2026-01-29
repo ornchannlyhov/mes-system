@@ -12,7 +12,7 @@ export function useAuth() {
     const isAuthenticated = computed(() => !!token.value && !!user.value)
 
     const config = useRuntimeConfig()
-    const baseURL = config.public.apiBase as string
+    const baseURL = (import.meta.server ? config.apiBase : config.public.apiBase) as string
     const apiKey = config.public.apiKey as string | undefined
 
     // Get headers for API calls
@@ -32,7 +32,7 @@ export function useAuth() {
 
     // Login
     async function login(email: string, password: string) {
-        const response = await $fetch<{ user: User; token: string }>('/auth/login', {
+        const response = await $fetch<{ user: User; token: string }>('auth/login', {
             baseURL,
             method: 'POST',
             headers: getHeaders(),
@@ -48,7 +48,7 @@ export function useAuth() {
 
     // Register
     async function register(name: string, email: string, password: string, password_confirmation: string) {
-        const response = await $fetch<any>('/auth/register', {
+        const response = await $fetch<any>('auth/register', {
             baseURL,
             method: 'POST',
             body: { name, email, password, password_confirmation },
@@ -68,7 +68,7 @@ export function useAuth() {
 
     // Verify Email
     async function verifyEmail(email: string, code: string) {
-        const response = await $fetch<{ user: User; token: string; message: string }>('/auth/verify-email', {
+        const response = await $fetch<{ user: User; token: string; message: string }>('auth/verify-email', {
             baseURL,
             method: 'POST',
             body: { email, code },
@@ -89,7 +89,7 @@ export function useAuth() {
     // Logout
     async function logout() {
         try {
-            await $fetch('/auth/logout', {
+            await $fetch('auth/logout', {
                 baseURL,
                 method: 'POST',
                 headers: getHeaders(),
@@ -112,7 +112,7 @@ export function useAuth() {
 
         if (token.value && !user.value) {
             try {
-                const response = await $fetch<User>('/auth/user', {
+                const response = await $fetch<User>('auth/user', {
                     baseURL,
                     headers: getHeaders(),
                 })

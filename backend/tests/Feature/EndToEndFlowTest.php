@@ -63,7 +63,7 @@ class EndToEndFlowTest extends TestCase
         ];
         $materialResp = $this->withHeaders($this->headers)->postJson('/api/products', $materialPayload);
         $materialResp->assertStatus(201);
-        $materialId = $materialResp->json('id');
+        $materialId = $materialResp->json('data.id');
 
         $productPayload = [
             'code' => 'TABLE-001',
@@ -75,14 +75,14 @@ class EndToEndFlowTest extends TestCase
         ];
         $productResp = $this->withHeaders($this->headers)->postJson('/api/products', $productPayload);
         $productResp->assertStatus(201);
-        $productId = $productResp->json('id');
+        $productId = $productResp->json('data.id');
 
         // 3. Engineering: Create BOM
         // Adjust stock first so we can produce
         $locationPayload = ['name' => 'Warehouse A', 'code' => 'WH-A'];
         $locResp = $this->withHeaders($this->headers)->postJson('/api/locations', $locationPayload);
         $locResp->assertStatus(201);
-        $locationId = $locResp->json('id');
+        $locationId = $locResp->json('data.id');
 
         // Add lots/stock for material
         $this->withHeaders($this->headers)->postJson("/api/locations/{$locationId}/adjust-stock", [
@@ -102,7 +102,7 @@ class EndToEndFlowTest extends TestCase
         ];
         $bomResp = $this->withHeaders($this->headers)->postJson('/api/boms', $bomPayload);
         $bomResp->assertStatus(201);
-        $bomId = $bomResp->json('id');
+        $bomId = $bomResp->json('data.id');
 
         // 4. Execution: Create Manufacturing Order
         $moPayload = [
@@ -114,17 +114,17 @@ class EndToEndFlowTest extends TestCase
         ];
         $moResp = $this->withHeaders($this->headers)->postJson('/api/manufacturing-orders', $moPayload);
         $moResp->assertStatus(201);
-        $moId = $moResp->json('id');
+        $moId = $moResp->json('data.id');
 
         // 5. Execution: Confirm MO (Checks stock)
         $this->withHeaders($this->headers)->postJson("/api/manufacturing-orders/{$moId}/confirm")
             ->assertStatus(200)
-            ->assertJson(['status' => 'confirmed']);
+            ->assertJsonFragment(['status' => 'confirmed']);
 
         // 6. Execution: Start MO
         $this->withHeaders($this->headers)->postJson("/api/manufacturing-orders/{$moId}/start")
             ->assertStatus(200)
-            ->assertJson(['status' => 'in_progress']);
+            ->assertJsonFragment(['status' => 'in_progress']);
 
         // 7. Execution: Complete MO
         $this->withHeaders($this->headers)->postJson("/api/manufacturing-orders/{$moId}/complete", [
@@ -132,7 +132,7 @@ class EndToEndFlowTest extends TestCase
             'location_id' => $locationId
         ])
             ->assertStatus(200)
-            ->assertJson(['status' => 'done']);
+            ->assertJsonFragment(['status' => 'done']);
 
         // 8. Verification: Check Stock of Finished Good
         $this->withHeaders($this->headers)->getJson("/api/locations/{$locationId}/stock")

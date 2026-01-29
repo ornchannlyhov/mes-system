@@ -41,14 +41,15 @@
               </span>
             </td>
             <td class="flex gap-1">
-              <button 
+              <UiIconButton
                 v-if="isDue(schedule.next_maintenance)"
                 @click="completeSchedule(schedule)" 
-                class="btn-primary text-xs py-1 px-2"
+                icon="heroicons:check-circle"
+                tooltip="Complete Maintenance"
+                color="text-green-600 hover:text-green-800"
+                :loading="completing === schedule.id"
                 :disabled="completing === schedule.id"
-              >
-                {{ completing === schedule.id ? '...' : 'Complete' }}
-              </button>
+              />
               <UiIconButton
                 @click="openModal(schedule)" 
                 icon="heroicons:pencil"
@@ -62,7 +63,16 @@
               />
             </td>
           </tr>
-          <tr v-if="schedules.length === 0">
+          <tr v-if="loading" v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+             <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+            <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-16"></div></td>
+            <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-24"></div></td>
+          </tr>
+          <tr v-if="schedules.length === 0 && !loading">
             <td colspan="7">
               <UiEmptyState 
                 title="No schedules found" 
@@ -146,6 +156,7 @@ const deletingItem = ref<Schedule | null>(null)
 const currentPage = ref(1)
 const pageSize = 10
 const form = ref({ name: '', equipment_id: null as number | null, interval_days: 30, is_active: true })
+const loading = ref(true)
 
 function isOverdue(date?: string) {
   if (!date) return false
@@ -161,6 +172,7 @@ function isDue(date?: string) {
 }
 
 async function fetchData() {
+  loading.value = true
   try {
     const [schedRes, eqRes] = await Promise.all([
       $api<{ data: Schedule[] }>('/maintenance/schedules'),
@@ -170,6 +182,8 @@ async function fetchData() {
     equipment.value = eqRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
+  } finally {
+    loading.value = false
   }
 }
 

@@ -2,33 +2,28 @@
 
 namespace App\Http\Controllers\Api\Traceability;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use Illuminate\Http\Request;
 use App\Http\Requests\Traceability\StoreSerialRequest;
 use App\Http\Requests\Traceability\UpdateSerialRequest;
 use App\Models\Serial;
 
-class SerialController extends Controller
+class SerialController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Serial::with(['product', 'lot', 'manufacturingOrder']);
+        $query = Serial::with(['product', 'lot', 'manufacturingOrder'])
+            ->applyStandardFilters(
+                $request,
+                ['name'], // Searchable
+                ['product_id', 'status', 'lot_id'] // Filterable
+            );
 
-        if ($request->has('product_id')) {
-            $query->where('product_id', $request->product_id);
-        }
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->has('lot_id')) {
-            $query->where('lot_id', $request->lot_id);
-        }
-        if ($request->has('search')) {
-            $query->where('name', 'ilike', "%{$request->search}%");
-        }
+        $counts = $this->getStatusCounts(Serial::query(), 'status');
 
-        return response()->json(
-            $query->orderBy('created_at', 'desc')->paginate($request->get('per_page', 10))
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 10)),
+            ['counts' => $counts]
         );
     }
 
@@ -36,12 +31,12 @@ class SerialController extends Controller
     {
         $serial = Serial::create($request->validated());
 
-        return response()->json($serial->load(['product', 'lot']), 201);
+        return $this->success($serial->load(['product', 'lot']), [], 201);
     }
 
     public function show(Serial $serial)
     {
-        return response()->json(
+        return $this->success(
             $serial->load(['product', 'lot', 'manufacturingOrder'])
         );
     }
@@ -50,33 +45,33 @@ class SerialController extends Controller
     {
         $serial->update($request->validated());
 
-        return response()->json($serial);
+        return $this->success($serial);
     }
 
     public function destroy(Serial $serial)
     {
         $serial->delete();
 
-        return response()->json(null, 204);
+        return $this->success(null, [], 204);
     }
 
     public function scrap(Serial $serial)
     {
         $serial->update(['status' => 'scrapped']);
 
-        return response()->json($serial);
+        return $this->success($serial);
     }
 
     public function sell(Serial $serial)
     {
         $serial->update(['status' => 'sold']);
 
-        return response()->json($serial);
+        return $this->success($serial);
     }
 
     public function genealogy(Serial $serial)
     {
-        return response()->json($this->buildNode($serial));
+        return $this->success($this->buildNode($serial));
     }
 
     private function buildNode($serialOrLot, $depth = 0)

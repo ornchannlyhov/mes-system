@@ -2,38 +2,27 @@
 
 namespace App\Http\Controllers\Api\Engineering;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Engineering\StoreProductRequest;
 use App\Http\Requests\Engineering\UpdateProductRequest;
 use App\Models\Product;
 use Illuminate\Http\Request;
 
-class ProductController extends Controller
+class ProductController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Product::query();
+        $query = Product::query()->applyStandardFilters(
+            $request,
+            ['code', 'name'], // Searchable fields
+            ['type', 'tracking', 'is_active'] // Exact match filters
+        );
 
-        // Filters
-        if ($request->has('type')) {
-            $query->where('type', $request->type);
-        }
-        if ($request->has('tracking')) {
-            $query->where('tracking', $request->tracking);
-        }
-        if ($request->has('is_active')) {
-            $query->where('is_active', $request->boolean('is_active'));
-        }
-        if ($request->has('search')) {
-            $search = strtolower($request->search);
-            $query->where(function ($q) use ($search) {
-                $q->whereRaw('LOWER(code) LIKE ?', ["%{$search}%"])
-                    ->orWhereRaw('LOWER(name) LIKE ?', ["%{$search}%"]);
-            });
-        }
+        $counts = $this->getStatusCounts(Product::query(), 'type');
 
-        return response()->json(
-            $query->orderBy('name')->paginate($request->get('per_page', 10))
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 10)),
+            ['counts' => $counts]
         );
     }
 
@@ -53,7 +42,7 @@ class ProductController extends Controller
 
         $product = Product::create($validated);
 
-        return response()->json($product, 201);
+        return $this->success($product, [], 201);
     }
 
     public function show(Product $product)
@@ -73,7 +62,7 @@ class ProductController extends Controller
             ->take(5)
             ->get();
 
-        return response()->json($product);
+        return $this->success($product);
     }
 
     public function update(UpdateProductRequest $request, Product $product)
@@ -92,13 +81,18 @@ class ProductController extends Controller
 
         $product->update($validated);
 
-        return response()->json($product);
+        return $this->success($product);
     }
 
     public function destroy(Product $product)
     {
+        // Optional: Check for dependencies before deleting
+        if ($product->stocks()->where('quantity', '>', 0)->exists()) {
+            return $this->error('Cannot delete product with existing stock.', 422);
+        }
+
         $product->delete();
 
-        return response()->json(null, 204);
+        return $this->success(null, [], 204);
     }
 }

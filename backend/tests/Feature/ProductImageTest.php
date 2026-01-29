@@ -47,7 +47,7 @@ class ProductImageTest extends TestCase
 
         $response->assertStatus(201);
 
-        $productId = $response->json('id');
+        $productId = $response->json('data.id');
         $product = Product::find($productId);
 
         $this->assertNotNull($product->image_url);

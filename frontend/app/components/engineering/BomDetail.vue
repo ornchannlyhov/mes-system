@@ -401,13 +401,13 @@ async function fetchData() {
     if (!props.bomId) return
     try {
         const [bomRes] = await Promise.all([
-        $api<Bom & { lines: BomLine[], operations: Operation[] }>(`/boms/${props.bomId}`),
+        $api<{ data: Bom & { lines: BomLine[], operations: Operation[] } }>(`/boms/${props.bomId}`),
         masterStore.fetchProducts(),
         masterStore.fetchWorkCenters(),
         ])
-        bom.value = bomRes
-        lines.value = bomRes.lines || []
-        operations.value = bomRes.operations || []
+        bom.value = bomRes.data
+        lines.value = bomRes.data.lines || []
+        operations.value = bomRes.data.operations || []
     } catch (e) {
         toast.error('Failed to fetch BOM data')
     }

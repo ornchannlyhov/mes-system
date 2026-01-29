@@ -2,23 +2,34 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Admin\StoreRoleRequest;
 use App\Http\Requests\Admin\UpdateRoleRequest;
 use App\Models\Role;
 use App\Models\Permission;
 use Illuminate\Http\Request;
 
-class RoleController extends Controller
+class RoleController extends BaseController
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Role::with('permissions')->get());
+        $query = Role::with('permissions')
+            ->applyStandardFilters(
+                $request,
+                ['name', 'label'], // Searchable
+                [] // Filterable
+            );
+
+        // Standard index usually returns pagination, but Role lists might be small. 
+        // Typically standardized to pagination in this refactor.
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 100))
+        );
     }
 
     public function permissions()
     {
-        return response()->json(Permission::all());
+        return $this->success(Permission::all());
     }
 
     public function update(UpdateRoleRequest $request, Role $role)
@@ -29,7 +40,11 @@ class RoleController extends Controller
             $role->permissions()->sync($validated['permissions']);
         }
 
-        return response()->json($role->load('permissions'));
+        // Roles usually don't have many other fields to update based on current file, 
+        // but if name/label were updatable they would be here. The request validates it.
+        $role->update($validated);
+
+        return $this->success($role->load('permissions'));
     }
 
     public function store(StoreRoleRequest $request)
@@ -45,18 +60,18 @@ class RoleController extends Controller
             $role->permissions()->sync($validated['permissions']);
         }
 
-        return response()->json($role->load('permissions'), 201);
+        return $this->success($role->load('permissions'), [], 201);
     }
 
     public function destroy(Role $role)
     {
         if (in_array($role->name, ['admin', 'manager', 'operator'])) {
-            return response()->json(['message' => 'Cannot delete system roles'], 403);
+            return $this->error('Cannot delete system roles', 403);
         }
 
         $role->permissions()->detach();
         $role->delete();
 
-        return response()->json(['message' => 'Role deleted successfully']);
+        return $this->success(null, ['message' => 'Role deleted successfully']);
     }
 }

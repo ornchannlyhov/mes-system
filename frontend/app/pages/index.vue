@@ -240,13 +240,12 @@ async function fetchData() {
   try {
     const [moRes, woRes, mrRes] = await Promise.all([
          $api<{ data: ManufacturingOrder[] }>('/manufacturing-orders', { query: { per_page: 50, sort_by: 'created_at', sort_dir: 'desc' } }),
-         $api<{ data: WorkOrder[] }>('/work-orders'),
+         $api<any>('/work-orders', { query: { per_page: 1 } }),
          $api<{ data: { status: string }[] }>('/maintenance/requests', { query: { per_page: 100 } }),
     ])
     
     recentMOs.value = moRes.data?.slice(0, 10) || []
     const allMOs = moRes.data || []
-    const workOrders = woRes.data || []
     const maintenanceRequests = mrRes.data || []
 
 
@@ -259,9 +258,9 @@ async function fetchData() {
        mo.status === 'done' && ((mo.actual_end || '').startsWith(today) || (mo.created_at || '').startsWith(today))
     ).length
     
-    stats.value.activeWOs = workOrders.filter(wo => 
-      ['ready', 'in_progress'].includes(wo.status)
-    ).length
+    // Use backend counts for Work Orders if available
+    const woCounts = woRes.counts || woRes.meta?.counts || {}
+    stats.value.activeWOs = (woCounts.ready || 0) + (woCounts.in_progress || 0)
 
     stats.value.equipmentIssues = maintenanceRequests.filter(mr => 
       ['pending', 'confirmed', 'in_progress'].includes(mr.status)
@@ -328,10 +327,10 @@ async function fetchData() {
         }]
     }
 
-    // 3. Quality Yield (From Work Orders QA Status)
-    const completedWos = (workOrders as WorkOrder[]).filter(wo => wo.status === 'done' && wo.qa_status && wo.qa_status !== 'pending')
-    const passCount = completedWos.filter(wo => wo.qa_status === 'pass').length
-    const failCount = completedWos.filter(wo => wo.qa_status === 'fail').length
+    // 3. Quality Yield (From QA Counts)
+    const qaCounts = woRes.qa_counts || woRes.meta?.qa_counts || {}
+    const passCount = qaCounts.pass || 0
+    const failCount = qaCounts.fail || 0
     const totalChecks = passCount + failCount
 
     if (totalChecks > 0) {

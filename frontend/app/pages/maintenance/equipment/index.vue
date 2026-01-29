@@ -77,7 +77,28 @@
         </div>
       </div>
 
-      <div v-if="equipment.length === 0" class="col-span-full">
+      <div v-if="loading" v-for="i in 6" :key="`skel-${i}`" class="card animate-pulse">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-gray-200 rounded-xl"></div>
+                <div>
+                    <div class="h-4 bg-gray-200 rounded w-32 mb-1"></div>
+                    <div class="h-3 bg-gray-200 rounded w-20"></div>
+                </div>
+            </div>
+            <div class="h-6 bg-gray-200 rounded w-16"></div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-gray-100 space-y-2">
+             <div class="flex justify-between"><div class="h-3 bg-gray-200 rounded w-24"></div><div class="h-3 bg-gray-200 rounded w-24"></div></div>
+             <div class="flex justify-between"><div class="h-3 bg-gray-200 rounded w-24"></div><div class="h-3 bg-gray-200 rounded w-24"></div></div>
+        </div>
+        <div class="mt-4 flex gap-2">
+             <div class="h-8 bg-gray-200 rounded flex-1"></div>
+             <div class="h-8 bg-gray-200 rounded flex-1"></div>
+        </div>
+      </div>
+
+      <div v-if="equipment.length === 0 && !loading" class="col-span-full">
         <UiEmptyState 
           title="No equipment found" 
           description="Add equipment to track maintenance and report issues."
@@ -223,6 +244,7 @@ const editing = ref<Equipment | null>(null)
 const currentPage = ref(1)
 const pageSize = 10
 const saving = ref(false)
+const loading = ref(true)
 
 const paginatedEquipment = computed(() => {
   const start = (currentPage.value - 1) * pageSize
@@ -256,11 +278,14 @@ function statusIconClass(status: string) {
 }
 
 async function fetchEquipment() {
+  loading.value = true
   try {
     const res = await $api<{ data: Equipment[] }>('/equipment')
     equipment.value = res.data || []
   } catch (e) {
     toast.error('Failed to fetch equipment')
+  } finally {
+    loading.value = false
   }
 }
 

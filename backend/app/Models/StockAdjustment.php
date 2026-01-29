@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StockAdjustment extends Model
 {
-    use HasFactory, ScopeByOrganization;
+    use HasFactory, ScopeByOrganization, \App\Traits\Searchable;
 
     protected $fillable = [
         'organization_id',

@@ -68,7 +68,15 @@
               </div>
             </td>
           </tr>
-          <tr v-if="users.length === 0">
+             <tr v-if="loading" v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="w-10 h-10 bg-gray-200 rounded-full"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-48"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-24"></div></td>
+             </tr>
+          <tr v-if="users.length === 0 && !loading">
             <td colspan="5">
               <UiEmptyState 
                 title="No users found" 
@@ -287,6 +295,7 @@ const saving = ref(false)
 const deleting = ref(false)
 const selectedUser = ref<User | null>(null)
 const userToDelete = ref<User | null>(null)
+const loading = ref(true)
 
 // Pagination
 const currentPage = ref(1)
@@ -323,19 +332,18 @@ const detailUserPermissions = computed(() => {
 })
 
 async function fetchData() {
+  loading.value = true
   try {
     const [usersRes, rolesRes] = await Promise.all([
       $api<User[]>('/users'),
-      $api<Role[]>('/roles'), // Ensure this returns permissions!
+      $api<{ data: Role[] }>('/roles'),
     ])
-    // The roles info from API is often just basic info. We might need to ensure backend includes permissions.
-    // AuthController::index just returns users. 
-    // RoleController::index usually returns roles. 
-    // Let's assume RoleController::index includes permissions or we load them.
     users.value = usersRes || []
-    roles.value = rolesRes || []
+    roles.value = rolesRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
+  } finally {
+    loading.value = false
   }
 }
 

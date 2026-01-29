@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Serial extends Model
 {
-    use \App\Traits\ScopeByOrganization;
+    use \App\Traits\ScopeByOrganization, \App\Traits\Searchable;
 
     protected $fillable = [
         'name',

@@ -43,7 +43,7 @@ class EngineeringTest extends TestCase
         $response = $this->withHeaders($this->headers)->postJson('/api/products', $payload);
         $response->assertStatus(201)
             ->assertJsonFragment(['name' => 'Test Product']);
-        $productId = $response->json('id');
+        $productId = $response->json('data.id');
 
         // Read
         $this->withHeaders($this->headers)->getJson("/api/products/{$productId}")
@@ -119,7 +119,7 @@ class EngineeringTest extends TestCase
 
         $response = $this->withHeaders($this->headers)->postJson('/api/boms', $payload);
         $response->assertStatus(201);
-        $bomId = $response->json('id');
+        $bomId = $response->json('data.id');
 
         // Read with lines
         $this->withHeaders($this->headers)->getJson("/api/boms/{$bomId}")
@@ -156,7 +156,7 @@ class EngineeringTest extends TestCase
         $response = $this->withHeaders($this->headers)->postJson('/api/work-centers', $payload);
         $response->assertStatus(201)
             ->assertJsonFragment(['name' => 'Assembly Line 1']);
-        $wcId = $response->json('id');
+        $wcId = $response->json('data.id');
 
         // Read
         $this->withHeaders($this->headers)->getJson("/api/work-centers/{$wcId}")

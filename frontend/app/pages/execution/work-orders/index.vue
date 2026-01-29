@@ -16,9 +16,9 @@
           <button 
             v-for="status in ['all', 'ready', 'in_progress', 'paused', 'pending', 'done']"
             :key="status"
-            @click="filterStatus = status === 'all' ? '' : status"
+            @click="filters.status = status === 'all' ? '' : status"
             :class="[
-              (filterStatus === status || (status === 'all' && filterStatus === ''))
+              (filters.status === status || (status === 'all' && filters.status === ''))
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
               'whitespace-nowrap px-4 py-2 border-b-2 font-medium text-sm transition-colors capitalize'
@@ -27,7 +27,7 @@
             {{ status.replace('_', ' ') }}
             <span class="ml-2 py-0.5 px-2 rounded-full text-xs" 
               :class="[
-                (filterStatus === status || (status === 'all' && filterStatus === '')) 
+                (filters.status === status || (status === 'all' && filters.status === '')) 
                   ? (status === 'all' ? 'bg-gray-100 text-gray-800' : 
                      status === 'ready' ? 'bg-blue-100 text-blue-700' :
                      status === 'in_progress' ? 'bg-primary-100 text-primary-700' :
@@ -40,7 +40,7 @@
                      status === 'done' ? 'bg-green-50 text-green-600' :
                      'bg-gray-100 text-gray-600')
               ]">
-              {{ countByStatus(status === 'all' ? '' : status) }}
+              {{ status === 'all' ? (counts.all || total) : (counts[status] || 0) }}
             </span>
           </button>
         </nav>
@@ -54,7 +54,24 @@
 
     <!-- Work Order Cards (Kanban-like) -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      <div v-for="wo in paginatedWorkOrders" :key="wo.id" class="card">
+      <!-- Skeletons -->
+      <template v-if="loading">
+        <div v-for="i in 6" :key="`skel-${i}`" class="card p-4 animate-pulse">
+            <div class="flex justify-between mb-4">
+                <div class="flex gap-2">
+                    <div>
+                        <div class="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+                        <div class="h-3 bg-gray-200 rounded w-16"></div>
+                    </div>
+                </div>
+                 <div class="h-5 bg-gray-200 rounded w-16"></div>
+            </div>
+             <div class="h-3 bg-gray-200 rounded w-full mb-2"></div>
+             <div class="h-8 bg-gray-200 rounded w-full mt-4"></div>
+        </div>
+      </template>
+
+      <div v-for="wo in workOrders" :key="wo.id" class="card">
         <!-- Header -->
         <div class="flex items-start justify-between mb-3">
           <div>
@@ -111,14 +128,14 @@
              <div v-else class="flex gap-2">
                 <button 
                     @click="openQaModal(wo, 'pass')" 
-                    :disabled="loading === wo.id"
+                    :disabled="processingId === wo.id"
                     class="btn-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 flex items-center gap-1 rounded px-2 py-1"
                 >
                     <Icon name="heroicons:check" class="w-3 h-3" /> Pass
                 </button>
                  <button 
                     @click="openQaModal(wo, 'fail')" 
-                    :disabled="loading === wo.id"
+                    :disabled="processingId === wo.id"
                     class="btn-xs bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 flex items-center gap-1 rounded px-2 py-1"
                 >
                     <Icon name="heroicons:x-mark" class="w-3 h-3" /> Fail
@@ -168,10 +185,10 @@
           <button
             v-if="wo.status === 'ready'"
             @click="start(wo)"
-            :disabled="loading === wo.id"
+            :disabled="processingId === wo.id"
             class="btn-outline text-xs flex-1 text-primary-600 border-primary-200 bg-primary-50 hover:bg-primary-100 justify-center"
           >
-            <Icon v-if="loading === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
+            <Icon v-if="processingId === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
             <Icon v-else name="heroicons:play" class="w-3 h-3" />
             Start
           </button>
@@ -179,10 +196,10 @@
            <button
             v-if="wo.status === 'in_progress'"
             @click="pause(wo)"
-            :disabled="loading === wo.id"
+            :disabled="processingId === wo.id"
             class="btn-outline text-xs flex-1 text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 justify-center"
           >
-            <Icon v-if="loading === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
+            <Icon v-if="processingId === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
             <Icon v-else name="heroicons:pause" class="w-3 h-3" />
             Pause
           </button>
@@ -190,10 +207,10 @@
            <button
             v-if="wo.status === 'in_progress'"
             @click="openFinishModal(wo)"
-            :disabled="loading === wo.id"
+            :disabled="processingId === wo.id"
             class="btn-outline text-xs flex-1 text-green-600 border-green-200 bg-green-50 hover:bg-green-100 justify-center"
           >
-            <Icon v-if="loading === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
+            <Icon v-if="processingId === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
             <Icon v-else name="heroicons:check" class="w-3 h-3" />
             Done
           </button>
@@ -201,20 +218,20 @@
            <button
             v-if="wo.status === 'paused'"
             @click="resume(wo)"
-            :disabled="loading === wo.id"
+            :disabled="processingId === wo.id"
             class="btn-outline text-xs flex-1 text-primary-600 border-primary-200 bg-primary-50 hover:bg-primary-100 justify-center"
           >
-            <Icon v-if="loading === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
+            <Icon v-if="processingId === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
             <Icon v-else name="heroicons:play" class="w-3 h-3" />
             Resume
           </button>
            <button
             v-if="wo.status === 'paused'"
             @click="openFinishModal(wo)"
-            :disabled="loading === wo.id"
+            :disabled="processingId === wo.id"
             class="btn-outline text-xs flex-1 text-green-600 border-green-200 bg-green-50 hover:bg-green-100 justify-center"
           >
-            <Icon v-if="loading === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
+            <Icon v-if="processingId === wo.id" name="heroicons:arrow-path" class="w-3 h-3 animate-spin" />
             <Icon v-else name="heroicons:check" class="w-3 h-3" />
             Done
           </button>
@@ -229,7 +246,7 @@
 
     <!-- Empty State -->
     <UiEmptyState 
-      v-if="filteredWorkOrders.length === 0"
+      v-if="workOrders.length === 0 && !loading"
       title="No work orders found" 
       description="Work orders are created when you confirm a Manufacturing Order"
       icon="heroicons:clipboard-document-list"
@@ -237,10 +254,10 @@
 
     <!-- Pagination -->
     <UiPagination
-      v-if="totalPages > 1"
-      v-model="currentPage"
-      :total-items="filteredWorkOrders.length"
-      :page-size="pageSize"
+        v-if="Math.ceil(total / perPage) > 1"
+        v-model="page"
+        :total-items="total"
+        :page-size="perPage"
     />
   </div>
 
@@ -254,7 +271,7 @@
       </div>
       <div class="flex justify-end gap-3 pt-4">
         <button type="button" @click="showFinishModal = false" class="btn-ghost">Cancel</button>
-        <button type="submit" class="btn-primary" :disabled="loading === finishingWo?.id">
+        <button type="submit" class="btn-primary" :disabled="processingId === finishingWo?.id">
           Complete
         </button>
       </div>
@@ -312,43 +329,41 @@
 </template>
 
 <script setup lang="ts">
+import { useServerDataTable } from '~/composables/useServerDataTable'
 import type { WorkOrder } from '~/types/models'
 
 const { $api } = useApi()
 const toast = useToast()
 const { getImageUrl } = useUtils()
 
-const workOrders = ref<WorkOrder[]>([])
-const search = ref('')
-const filterStatus = ref('')
-const loading = ref<number | null>(null)
-const currentPage = ref(1)
-const pageSize = 12
-
-
-
-const filteredWorkOrders = computed(() => {
-  let filtered = workOrders.value.filter(wo => {
-    const matchesSearch = !search.value || 
-      wo.work_center?.name?.toLowerCase().includes(search.value.toLowerCase()) ||
-      wo.manufacturing_order?.name?.toLowerCase().includes(search.value.toLowerCase())
-    const matchesStatus = !filterStatus.value || wo.status === filterStatus.value
-    return matchesSearch && matchesStatus
-  })
-  const statusOrder: Record<string, number> = { in_progress: 0, ready: 1, paused: 2, pending: 3, done: 4 }
-  return filtered.sort((a, b) => (statusOrder[a.status] ?? 5) - (statusOrder[b.status] ?? 5))
+// Data Table
+const { 
+  items: workOrders, 
+  total, 
+  loading, 
+  counts, 
+  page, 
+  perPage, 
+  search, 
+  filters, 
+  refresh 
+} = useServerDataTable<WorkOrder>({
+  url: 'work-orders',
+  perPage: 12,
+  initialFilters: { status: '' }
 })
 
-function countByStatus(status: string) {
-  if (!status) return workOrders.value.length
-  return workOrders.value.filter(wo => wo.status === status).length
+const now = useNow()
+
+// Live duration calculation
+function getLiveDuration(wo: WorkOrder) {
+  if (wo.status !== 'in_progress' || !wo.started_at) return wo.duration_actual
+  const start = new Date(wo.started_at).getTime()
+  if (isNaN(start)) return Number(wo.duration_actual) || 0
+  const current = now.value.getTime()
+  const diffMinutes = Math.max(0, (current - start) / 1000 / 60)
+  return (Number(wo.duration_actual) || 0) + diffMinutes
 }
-
-const totalPages = computed(() => Math.ceil(filteredWorkOrders.value.length / pageSize))
-const paginatedWorkOrders = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredWorkOrders.value.slice(start, start + pageSize)
-})
 
 function formatDuration(minutes: number) {
   if (isNaN(minutes) || !minutes) return '00:00'
@@ -360,7 +375,6 @@ function formatDuration(minutes: number) {
   const hStr = h > 0 ? `${h}:` : ''
   const mStr = h > 0 ? m.toString().padStart(2, '0') : m.toString()
   const sStr = s.toString().padStart(2, '0')
-  
   return h > 0 ? `${hStr}${mStr}:${sStr}` : `${mStr}:${sStr}`
 }
 
@@ -377,91 +391,49 @@ function durationClass(wo: WorkOrder) {
   return 'bg-primary-500'
 }
 
-async function fetchWorkOrders() {
-  try {
-    const res = await $api<{ data: WorkOrder[] }>('/work-orders')
-    workOrders.value = res.data || []
-  } catch (e) {
-    toast.error('Failed to fetch work orders')
-  }
-}
+// Actions State
+const processingId = ref<number | null>(null)
 
-const now = useNow()
-
-// Live duration calculation
-function getLiveDuration(wo: WorkOrder) {
-  if (wo.status !== 'in_progress' || !wo.started_at) return wo.duration_actual
-  
-  // Parse started_at (assuming UTC/ISO)
-  const start = new Date(wo.started_at).getTime()
-  if (isNaN(start)) return Number(wo.duration_actual) || 0
-
-  const current = now.value.getTime()
-  const diffMinutes = Math.max(0, (current - start) / 1000 / 60)
-  
-  return (Number(wo.duration_actual) || 0) + diffMinutes
-}
-
+// Finish Modal
 const showFinishModal = ref(false)
 const finishingWo = ref<WorkOrder | null>(null)
 const finishForm = ref({ quantity: 0 })
 
 function openFinishModal(wo: WorkOrder) {
   finishingWo.value = wo
-  // Default to expected qty?
-  // We don't have expected qty on WO directly here easily (it might be calc from MO qty)
-  // Just default to 1 or 0
   finishForm.value = { quantity: 0 }
   showFinishModal.value = true
 }
 
-async function start(wo: WorkOrder) {
-  loading.value = wo.id
-  try {
-    const res = await $api<{data: WorkOrder}>(`/work-orders/${wo.id}/start`, { method: 'POST' })
-    // Update local state immediately
-    const index = workOrders.value.findIndex(w => w.id === wo.id)
-    if (index !== -1 && res) {
-       // Just reload everything to be safe or update local
-       await fetchWorkOrders() 
+// Action Handlers
+async function handleAction(wo: WorkOrder, action: () => Promise<void>, successMsg: string) {
+    processingId.value = wo.id
+    try {
+        await action()
+        toast.success(successMsg)
+        refresh()
+    } catch (e: any) {
+        toast.error(e.data?.message || 'Action failed')
+    } finally {
+        processingId.value = null
     }
-    toast.success('Work order started')
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to start')
-  } finally {
-    loading.value = null
-  }
 }
 
-async function pause(wo: WorkOrder) {
-  loading.value = wo.id
-  try {
-    await $api(`/work-orders/${wo.id}/pause`, { method: 'POST' })
-    toast.success('Work order paused')
-    await fetchWorkOrders()
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to pause')
-  } finally {
-    loading.value = null
-  }
+function start(wo: WorkOrder) {
+    handleAction(wo, () => $api(`/work-orders/${wo.id}/start`, { method: 'POST' }), 'Work order started')
 }
 
-async function resume(wo: WorkOrder) {
-  loading.value = wo.id
-  try {
-    await $api(`/work-orders/${wo.id}/resume`, { method: 'POST' })
-    toast.success('Work order resumed')
-    await fetchWorkOrders()
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to resume')
-  } finally {
-    loading.value = null
-  }
+function pause(wo: WorkOrder) {
+    handleAction(wo, () => $api(`/work-orders/${wo.id}/pause`, { method: 'POST' }), 'Work order paused')
+}
+
+function resume(wo: WorkOrder) {
+    handleAction(wo, () => $api(`/work-orders/${wo.id}/resume`, { method: 'POST' }), 'Work order resumed')
 }
 
 async function confirmFinish() {
   if (!finishingWo.value) return
-  loading.value = finishingWo.value.id
+  processingId.value = finishingWo.value.id
   try {
     await $api(`/work-orders/${finishingWo.value.id}/finish`, { 
       method: 'POST',
@@ -469,11 +441,11 @@ async function confirmFinish() {
     })
     toast.success('Work order completed')
     showFinishModal.value = false
-    await fetchWorkOrders()
+    refresh()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to finish')
   } finally {
-    loading.value = null
+    processingId.value = null
   }
 }
 
@@ -484,39 +456,29 @@ const qaForm = ref({ status: 'pass' as 'pass' | 'fail', comments: '' })
 
 function openQaModal(wo: WorkOrder, status: 'pass' | 'fail' = 'pass') {
   qaTargetWo.value = wo
-  qaForm.value = { 
-      status, 
-      comments: wo.qa_comments || '' 
-  }
+  qaForm.value = { status, comments: wo.qa_comments || '' }
   showQaModal.value = true
 }
 
 async function submitQa() {
     if (!qaTargetWo.value) return
-    loading.value = qaTargetWo.value.id
-    
+    processingId.value = qaTargetWo.value.id
     try {
         if (qaForm.value.status === 'fail' && !qaForm.value.comments) {
             toast.error('Reason is required for failure')
             return
         }
-
         await $api(`/work-orders/${qaTargetWo.value.id}`, {
             method: 'PUT',
-            body: {
-                qa_status: qaForm.value.status,
-                qa_comments: qaForm.value.comments
-            }
+            body: { qa_status: qaForm.value.status, qa_comments: qaForm.value.comments }
         })
         toast.success(`QA Marked as ${qaForm.value.status.toUpperCase()}`)
         showQaModal.value = false
-        await fetchWorkOrders()
+        refresh()
     } catch(e) {
         toast.error('Failed to update QA status')
     } finally {
-        loading.value = null
+        processingId.value = null
     }
 }
-
-onMounted(fetchWorkOrders)
 </script>

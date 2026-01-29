@@ -25,16 +25,16 @@
     <!-- Status Tabs -->
     <div class="flex gap-2 border-b border-gray-200 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
       <button 
-        @click="filterStatus = ''" 
-        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap', filterStatus === '' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
+        @click="filters.status = ''" 
+        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap', filters.status === '' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
       >
-        All <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filterStatus === '' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-600']">{{ orders.length }}</span>
+        All <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filters.status === '' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-600']">{{ counts.all || total }}</span>
       </button>
       <button 
         v-for="status in ['draft', 'confirmed', 'in_progress', 'done', 'scheduled']" 
         :key="status"
-        @click="filterStatus = status" 
-        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize whitespace-nowrap', filterStatus === status ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
+        @click="filters.status = status" 
+        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize whitespace-nowrap', filters.status === status ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
       >
         {{ status.replace('_', ' ') }} 
         <span 
@@ -47,7 +47,7 @@
             'bg-purple-100 text-purple-700'
           ]"
         >
-          {{ countByStatus(status) }}
+          {{ counts[status] || 0 }}
         </span>
       </button>
     </div>
@@ -129,7 +129,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="mo in paginatedOrders" :key="mo.id" class="hover:bg-gray-50">
+          <tr v-for="mo in tableOrders" :key="mo.id" class="hover:bg-gray-50">
             <td>
               <button @click="openDetail(mo)" class="font-medium text-primary-600 hover:underline">
                 {{ mo.name }}
@@ -242,7 +242,7 @@
               </div>
             </td>
           </tr>
-          <tr v-if="filteredOrders.length === 0">
+          <tr v-if="tableOrders.length === 0 && !loading">
             <td colspan="7">
               <UiEmptyState 
                 title="No orders found" 
@@ -257,15 +257,27 @@
             </td>
           </tr>
         </tbody>
+        <tbody v-if="loading">
+          <tr v-for="i in 5" :key="i" class="animate-pulse">
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+            <td class="px-6 py-4"><div class="flex items-center gap-2"><div class="w-8 h-8 bg-gray-200 rounded"></div><div class="h-4 bg-gray-200 rounded w-32"></div></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-20"></div></td>
+            <td class="px-6 py-4"><div class="h-6 bg-gray-200 rounded w-16"></div></td>
+            <td class="px-6 py-4"><div class="h-6 bg-gray-200 rounded w-16"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+            <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-24"></div></td>
+          </tr>
+        </tbody>
       </table>
       </div>
 
       <!-- Pagination -->
       <UiPagination
-        v-if="totalPages > 1"
-        v-model="currentPage"
-        :total-items="filteredOrders.length"
-        :page-size="pageSize"
+        v-if="Math.ceil(total / perPage) > 1"
+        v-model="page"
+        :total-items="total"
+        :page-size="perPage"
       />
     </div>
 
@@ -334,38 +346,87 @@
     <!-- Image Preview -->
     <UiImagePreview v-model="showImagePreview" :src="previewImage.src" :alt="previewImage.alt" />
 
-    <!-- Detail SlideOver (75% width) -->
     <UiSlideOver v-model="showDetailModal" title="Manufacturing Order Detail" width="sm:w-[75vw]">
-       <ExecutionManufacturingOrderDetail v-if="selectedOrderId" :order-id="selectedOrderId" @updated="fetchData" />
+       <ExecutionManufacturingOrderDetail v-if="selectedOrderId" :order-id="selectedOrderId" @updated="refreshTable" />
     </UiSlideOver>
+
+    <!-- Confirm Modal -->
+    <UiConfirmModal
+      v-model="showConfirmModal"
+      :title="confirmTitle"
+      :message="confirmMessage"
+      @confirm="handleConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useServerDataTable } from '~/composables/useServerDataTable'
 import type { ManufacturingOrder, Product, Bom } from '~/types/models'
 
 const { $api } = useApi()
 const toast = useToast()
 const config = useRuntimeConfig()
 const masterStore = useMasterStore()
+const { getImageUrl, formatDate } = useUtils()
 
-const orders = ref<ManufacturingOrder[]>([])
-const products = computed(() => masterStore.products)
-const boms = ref<Bom[]>([])
-const search = ref('')
-const filterStatus = ref('')
-const showDetailModal = ref(false)
-const editing = ref<ManufacturingOrder | null>(null)
-const saving = ref(false)
-const actionLoading = ref<number | null>(null)
+// View State
 const viewMode = ref<'table' | 'calendar'>('table')
-const currentDate = ref(new Date())
-const draggingMO = ref<any>(null)
 
+// Data Table (Server-side)
+const table = useServerDataTable<ManufacturingOrder>({
+  url: 'manufacturing-orders',
+  initialFilters: { status: '' },
+  perPage: 10
+})
+
+const { 
+  items: tableOrders, 
+  total, 
+  loading, 
+  counts, 
+  page, 
+  perPage, 
+  search, 
+  filters, 
+  refresh: refreshTable 
+} = table
+
+// Calendar State
+const calendarOrders = ref<ManufacturingOrder[]>([])
+const currentDate = ref(new Date())
 const currentYear = computed(() => currentDate.value.getFullYear())
 const currentMonth = computed(() => currentDate.value.getMonth())
 const currentMonthName = computed(() => currentDate.value.toLocaleDateString('en-US', { month: 'long' }))
 
+// Calendar Logic
+async function fetchCalendarData() {
+    const start = new Date(currentYear.value, currentMonth.value, 1)
+    const end = new Date(currentYear.value, currentMonth.value + 1, 0)
+    const startStr = start.toISOString().split('T')[0]
+    const endStr = end.toISOString().split('T')[0]
+
+    try {
+        const res = await $api<{ data: ManufacturingOrder[] }>('manufacturing-orders', {
+            query: {
+                start_date: startStr,
+                end_date: endStr,
+                per_page: 1000 // Fetch all for calendar
+            }
+        })
+        calendarOrders.value = res.data
+    } catch (e) {
+        console.error('Failed to fetch calendar data', e)
+    }
+}
+
+watch([currentYear, currentMonth, viewMode], () => {
+    if (viewMode.value === 'calendar') {
+        fetchCalendarData()
+    }
+})
+
+// Calendar Days Generation
 const calendarDays = computed(() => {
   const year = currentYear.value
   const month = currentMonth.value
@@ -385,7 +446,8 @@ const calendarDays = computed(() => {
   for (let date = 1; date <= daysInMonth; date++) {
     const dayDate = new Date(year, month, date)
     const isToday = dayDate.getTime() === today.getTime()
-    const ordersOnDay = filteredOrders.value.filter(mo => {
+    
+    const ordersOnDay = calendarOrders.value.filter(mo => {
       if (!mo.scheduled_start) return false
       const startDate = new Date(mo.scheduled_start)
       const endDate = mo.scheduled_end ? new Date(mo.scheduled_end) : startDate
@@ -401,92 +463,34 @@ const calendarDays = computed(() => {
   }
   return days
 })
-const currentPage = ref(1)
-const pageSize = 10
-const { getImageUrl, formatDate } = useUtils()
 
-// Form
-const showModal = ref(false)
-const selectedOrderId = ref<number | null>(null)
-
-// Image Preview
-const showImagePreview = ref(false)
-const previewImage = ref({ src: '', alt: '' })
-
-function openImage(url?: string, alt?: string) {
-  if (!url) return
-  previewImage.value = { src: getImageUrl(url), alt: alt || 'Product Image' }
-  showImagePreview.value = true
-}
-
-// Calendar functions
 function changeMonth(delta: number) {
   currentDate.value = new Date(currentYear.value, currentMonth.value + delta, 1)
 }
 
-function getStatusColor(status: string) {
-  const colors: Record<string, string> = {
-    draft: 'bg-gray-200 text-gray-800 border-gray-400',
-    confirmed: 'bg-blue-100 text-blue-800 border-blue-500',
-    in_progress: 'bg-orange-100 text-orange-800 border-orange-500',
-    done: 'bg-green-100 text-green-800 border-green-500',
-    scheduled: 'bg-purple-100 text-purple-800 border-purple-500',
-    cancelled: 'bg-red-100 text-red-800 border-red-500',
-  }
-  return colors[status] || 'bg-gray-200 text-gray-800 border-gray-400'
-}
+// Master Data
+const boms = ref<Bom[]>([])
+const products = computed(() => masterStore.products)
+const finishedProducts = computed(() => products.value.filter(p => p.type === 'finished'))
 
-function viewOrder(id: number) {
-  navigateTo(`/execution/manufacturing-orders/${id}`)
-}
+onMounted(async () => {
+    await Promise.all([
+        masterStore.fetchProducts(),
+         $api<{ data: Bom[] }>('/boms').then(r => boms.value = r.data || []).catch(() => {})
+    ])
+    
+    if (viewMode.value === 'calendar') {
+        fetchCalendarData()
+    }
+})
 
-// Drag and Drop
-function onDragStart(event: DragEvent, mo: any) {
-  draggingMO.value = mo
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
-}
-
-function onDragEnd() {
-  draggingMO.value = null
-}
-
-function onDragEnter(event: DragEvent) {
-  if (!draggingMO.value) return
-  const target = event.currentTarget as HTMLElement
-  target?.classList.add('bg-blue-100')
-}
-
-function onDragLeave(event: DragEvent) {
-  const target = event.currentTarget as HTMLElement
-  target?.classList.remove('bg-blue-100')
-}
-
-async function onDrop(event: DragEvent, day: any) {
-  const target = event.currentTarget as HTMLElement
-  target?.classList.remove('bg-blue-100')
-  if (!draggingMO.value || !day.isCurrentMonth) return
-  
-  const mo = draggingMO.value
-  const newStart = new Date(day.fullDate)
-  newStart.setHours(8, 0, 0, 0)
-  
-  const duration = mo.scheduled_end ? new Date(mo.scheduled_end).getTime() - new Date(mo.scheduled_start).getTime() : 8 * 60 * 60 * 1000
-  const newEnd = new Date(newStart.getTime() + duration)
-  
-  try {
-    await $api(`/manufacturing-orders/${mo.id}/reschedule`, {
-      method: 'PUT',
-      body: { scheduled_start: newStart.toISOString(), scheduled_end: newEnd.toISOString() }
-    })
-    toast.success('Order rescheduled successfully')
-    await fetchData()
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to reschedule order')
-  }
-  draggingMO.value = null
-}
-
-onMounted(fetchData)
+// Modals & Form
+const showModal = ref(false)
+const showDetailModal = ref(false)
+const selectedOrderId = ref<number | null>(null)
+const editing = ref<ManufacturingOrder | null>(null)
+const saving = ref(false)
+const actionLoading = ref<number | null>(null)
 
 const form = ref({
   product_id: null as number | null,
@@ -496,75 +500,16 @@ const form = ref({
   scheduled_start: '',
   scheduled_end: '',
 })
-const finishedProducts = computed(() => products.value.filter(p => p.type === 'finished'))
-
-const filteredOrders = computed(() => {
-  return orders.value.filter(mo => {
-    const matchesSearch = !search.value || 
-      mo.name.toLowerCase().includes(search.value.toLowerCase()) ||
-      mo.product?.name.toLowerCase().includes(search.value.toLowerCase())
-    const matchesStatus = !filterStatus.value || mo.status === filterStatus.value
-    return matchesSearch && matchesStatus
-  })
-})
-
-const totalPages = computed(() => Math.ceil(filteredOrders.value.length / pageSize))
-
-const paginatedOrders = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredOrders.value.slice(start, start + pageSize)
-})
 
 const filteredBoms = computed(() => {
   if (!form.value.product_id) return []
   return boms.value.filter(b => b.product_id === form.value.product_id && b.is_active)
 })
 
-watch([search, filterStatus], () => { currentPage.value = 1 })
-
-// Methods
-function countByStatus(status: string) {
-  return orders.value.filter(o => o.status === status).length
-}
-
-function progressPercent(mo: ManufacturingOrder) {
-  if (!mo.qty_to_produce) return 0
-  return mo.qty_to_produce > 0 ? (mo.qty_produced / mo.qty_to_produce) * 100 : 0
-}
-
-function statusClass(status: string) {
-  if (status === 'done') return 'bg-green-500'
-  if (status === 'in_progress') return 'bg-primary-500'
-  if (status === 'confirmed') return 'bg-gray-500'
-  return 'bg-gray-300'
-}
-
-function progressClass(mo: ManufacturingOrder) {
-  const percent = progressPercent(mo)
-  if (percent >= 100) return 'bg-green-500'
-  if (percent > 0) return 'bg-primary-500'
-  return 'bg-gray-300'
-}
-
 function onProductChange() {
   form.value.bom_id = null
-  // Auto-select if only one BOM
   if (filteredBoms.value.length === 1) {
     form.value.bom_id = filteredBoms.value[0]?.id ?? null
-  }
-}
-
-async function fetchData() {
-  try {
-    const [moRes, bomRes] = await Promise.all([
-      $api<{ data: ManufacturingOrder[] }>('/manufacturing-orders'),
-      $api<{ data: Bom[] }>('/boms'),
-      masterStore.fetchProducts(),
-    ])
-    orders.value = moRes.data || []
-    boms.value = bomRes.data || []
-  } catch (e) {
-    toast.error('Failed to fetch data')
   }
 }
 
@@ -591,6 +536,7 @@ function openDetail(mo: ManufacturingOrder) {
     showDetailModal.value = true
 }
 
+// Actions
 async function save() {
   saving.value = true
   try {
@@ -603,7 +549,8 @@ async function save() {
       toast.success('Order created')
     }
     showModal.value = false
-    await fetchData()
+    refreshTable()
+    if (viewMode.value === 'calendar') fetchCalendarData()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save order')
   } finally {
@@ -611,94 +558,154 @@ async function save() {
   }
 }
 
-async function scheduleOrder(mo: ManufacturingOrder) {
-  if (!mo.scheduled_start || !mo.scheduled_end) {
-    toast.error('Please set scheduled dates first')
-    return
-  }
+async function handleAction(mo: ManufacturingOrder, action: () => Promise<void>, successMsg: string) {
+    actionLoading.value = mo.id
+    try {
+        await action()
+        toast.success(successMsg)
+        refreshTable()
+        if (viewMode.value === 'calendar') fetchCalendarData()
+    } catch (e: any) {
+        toast.error(e.data?.message || 'Action failed')
+    } finally {
+        actionLoading.value = null
+    }
+}
+
+function scheduleOrder(mo: ManufacturingOrder) {
+    if (!mo.scheduled_start || !mo.scheduled_end) {
+        toast.error('Please set scheduled dates first')
+        return
+    }
+    handleAction(
+        mo, 
+        () => $api(`/manufacturing-orders/${mo.id}/reschedule`, { 
+            method: 'PUT', 
+            body: { scheduled_start: mo.scheduled_start, scheduled_end: mo.scheduled_end } 
+        }), 
+        'Order scheduled'
+    )
+}
+
+function confirmOrder(mo: ManufacturingOrder) {
+    handleAction(mo, () => $api(`/manufacturing-orders/${mo.id}/confirm`, { method: 'POST' }), 'Order confirmed')
+}
+
+function startOrder(mo: ManufacturingOrder) {
+    handleAction(mo, () => $api(`/manufacturing-orders/${mo.id}/start`, { method: 'POST' }), 'Production started')
+}
+
+function completeOrder(mo: ManufacturingOrder) {
+    handleAction(mo, () => $api(`/manufacturing-orders/${mo.id}/complete`, { method: 'POST' }), 'Order completed')
+}
+
+// Confirm Modal
+const showConfirmModal = ref(false)
+const confirmMessage = ref('')
+const confirmTitle = ref('')
+const confirmAction = ref<(() => void) | null>(null)
+
+function openConfirmModal(title: string, message: string, action: () => void) {
+  confirmTitle.value = title
+  confirmMessage.value = message
+  confirmAction.value = action
+  showConfirmModal.value = true
+}
+
+function handleConfirm() {
+  if (confirmAction.value) confirmAction.value()
+  showConfirmModal.value = false
+}
+
+function deleteOrder(mo: ManufacturingOrder) {
+    if (actionLoading.value) return
+    openConfirmModal(
+        'Delete Order', 
+        `Are you sure you want to delete MO #${mo.id}? This cannot be undone.`, 
+        () => handleAction(mo, () => $api(`/manufacturing-orders/${mo.id}`, { method: 'DELETE' }), 'Order deleted')
+    )
+}
+
+// Drag & Drop (Calendar)
+const draggingMO = ref<any>(null)
+function onDragStart(event: DragEvent, mo: any) {
+  draggingMO.value = mo
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+function onDragEnd() { draggingMO.value = null }
+function onDragEnter(event: DragEvent) {
+  if (!draggingMO.value) return
+  const target = event.currentTarget as HTMLElement
+  target?.classList.add('bg-blue-100')
+}
+function onDragLeave(event: DragEvent) {
+  const target = event.currentTarget as HTMLElement
+  target?.classList.remove('bg-blue-100')
+}
+async function onDrop(event: DragEvent, day: any) {
+  const target = event.currentTarget as HTMLElement
+  target?.classList.remove('bg-blue-100')
+  if (!draggingMO.value || !day.isCurrentMonth) return
   
-  actionLoading.value = mo.id
+  const mo = draggingMO.value
+  const newStart = new Date(day.fullDate)
+  newStart.setHours(8, 0, 0, 0)
+  const duration = mo.scheduled_end ? new Date(mo.scheduled_end).getTime() - new Date(mo.scheduled_start).getTime() : 8 * 60 * 60 * 1000
+  const newEnd = new Date(newStart.getTime() + duration)
+  
   try {
     await $api(`/manufacturing-orders/${mo.id}/reschedule`, {
       method: 'PUT',
-      body: { 
-        scheduled_start: mo.scheduled_start,
-        scheduled_end: mo.scheduled_end
-      }
+      body: { scheduled_start: newStart.toISOString(), scheduled_end: newEnd.toISOString() }
     })
-    toast.success('Order scheduled')
-    await fetchData()
+    toast.success('Order rescheduled')
+    fetchCalendarData()
+    refreshTable() // Update list too
   } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to schedule order')
-  } finally {
-    actionLoading.value = null
+    toast.error(e.data?.message || 'Failed to reschedule order')
   }
-}
-
-async function confirmOrder(mo: ManufacturingOrder) {
-  actionLoading.value = mo.id
-  try {
-    await $api(`/manufacturing-orders/${mo.id}/confirm`, { method: 'POST' })
-    toast.success('Order confirmed - Work orders generated')
-    await fetchData()
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to confirm')
-  } finally {
-    actionLoading.value = null
-  }
-}
-
-async function startOrder(mo: ManufacturingOrder) {
-  actionLoading.value = mo.id
-  try {
-    await $api(`/manufacturing-orders/${mo.id}/start`, { method: 'POST' })
-    toast.success('Production started')
-    await fetchData()
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to start')
-  } finally {
-    actionLoading.value = null
-  }
-}
-
-async function completeOrder(mo: ManufacturingOrder) {
-  actionLoading.value = mo.id
-  try {
-    await $api(`/manufacturing-orders/${mo.id}/complete`, { method: 'POST' })
-    toast.success('Order completed')
-    await fetchData()
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to complete')
-  } finally {
-    actionLoading.value = null
-  }
-}
-
-async function deleteOrder(mo: ManufacturingOrder) {
-  if (!confirm(`Delete ${mo.name}? This cannot be undone.`)) return
-  
-  actionLoading.value = mo.id
-  try {
-    await $api(`/manufacturing-orders/${mo.id}`, { method: 'DELETE' })
-    toast.success('Order deleted')
-    await fetchData()
-  } catch (e: any) {
-    toast.error(e.data?.message || 'Failed to delete order')
-  } finally {
-    actionLoading.value = null
-  }
+  draggingMO.value = null
 }
 
 const route = useRoute()
-
 onMounted(async () => {
-    await fetchData()
     if (route.query.id) {
-        const id = Number(route.query.id)
-        if (!isNaN(id)) {
-            selectedOrderId.value = id
-            showDetailModal.value = true
-        }
+        selectedOrderId.value = Number(route.query.id)
+        showDetailModal.value = true
     }
 })
+
+// Misc utils
+function getStatusColor(status: string) {
+  const colors: Record<string, string> = {
+    draft: 'bg-gray-200 text-gray-800 border-gray-400',
+    confirmed: 'bg-blue-100 text-blue-800 border-blue-500',
+    in_progress: 'bg-orange-100 text-orange-800 border-orange-500',
+    done: 'bg-green-100 text-green-800 border-green-500',
+    scheduled: 'bg-purple-100 text-purple-800 border-purple-500',
+    cancelled: 'bg-red-100 text-red-800 border-red-500',
+  }
+  return colors[status] || 'bg-gray-200 text-gray-800 border-gray-400'
+}
+
+function viewOrder(id: number) { navigateTo(`/execution/manufacturing-orders/${id}`) }
+function progressPercent(mo: ManufacturingOrder) {
+  if (!mo.qty_to_produce) return 0
+  return mo.qty_to_produce > 0 ? (mo.qty_produced / mo.qty_to_produce) * 100 : 0
+}
+function progressClass(mo: ManufacturingOrder) {
+  const percent = progressPercent(mo)
+  if (percent >= 100) return 'bg-green-500'
+  if (percent > 0) return 'bg-primary-500'
+  return 'bg-gray-300'
+}
+
+// Image Preview
+const showImagePreview = ref(false)
+const previewImage = ref({ src: '', alt: '' })
+function openImage(url?: string, alt?: string) {
+  if (!url) return
+  previewImage.value = { src: getImageUrl(url), alt: alt || 'Product Image' }
+  showImagePreview.value = true
+}
 </script>

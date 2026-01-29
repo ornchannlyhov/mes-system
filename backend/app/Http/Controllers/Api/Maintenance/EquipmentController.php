@@ -2,34 +2,34 @@
 
 namespace App\Http\Controllers\Api\Maintenance;
 
-use App\Http\Controllers\Controller;
-use App\Http\Requests\Maintenance\LogMaintenanceRequest;
+use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Maintenance\StoreEquipmentRequest;
 use App\Models\Equipment;
-use App\Models\MaintenanceLog;
 use Illuminate\Http\Request;
 
 use App\Http\Requests\Maintenance\UpdateEquipmentRequest;
 use App\Http\Requests\Maintenance\ReportBrokenEquipmentRequest;
 
-class EquipmentController extends Controller
+class EquipmentController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Equipment::with('workCenter');
+        $query = Equipment::with('workCenter')
+            ->applyStandardFilters(
+                $request,
+                ['name', 'code', 'notes'], // Searchable
+                ['status', 'work_center_id'] // Filterable
+            );
 
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->has('work_center_id')) {
-            $query->where('work_center_id', $request->work_center_id);
-        }
         if ($request->boolean('maintenance_due')) {
             $query->where('next_maintenance', '<=', now());
         }
 
-        return response()->json(
-            $query->orderBy('name')->paginate($request->get('per_page', 10))
+        $counts = $this->getStatusCounts(Equipment::query(), 'status');
+
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 10)),
+            ['counts' => $counts]
         );
     }
 
@@ -44,12 +44,12 @@ class EquipmentController extends Controller
 
         $equipment = Equipment::create($validated);
 
-        return response()->json($equipment, 201);
+        return $this->success($equipment, [], 201);
     }
 
     public function show(Equipment $equipment)
     {
-        return response()->json(
+        return $this->success(
             $equipment->load(['workCenter', 'maintenanceLogs.performer'])
         );
     }
@@ -58,14 +58,14 @@ class EquipmentController extends Controller
     {
         $equipment->update($request->validated());
 
-        return response()->json($equipment);
+        return $this->success($equipment);
     }
 
     public function destroy(Equipment $equipment)
     {
         $equipment->delete();
 
-        return response()->json(null, 204);
+        return $this->success(null, [], 204);
     }
 
     // Report equipment as broken
@@ -84,9 +84,9 @@ class EquipmentController extends Controller
             'requested_by' => $request->user()->id,
         ]);
 
-        return response()->json([
+        return $this->success([
             'equipment' => $equipment,
             'maintenance_request' => $maintenanceRequest
-        ]);
+        ], ['message' => 'Equipment reported as broken']);
     }
 }

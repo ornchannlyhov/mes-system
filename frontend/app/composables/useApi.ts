@@ -3,7 +3,7 @@ export function useApi() {
     const config = useRuntimeConfig()
     const { token } = useAuth()
 
-    const baseURL = config.public.apiBase as string
+    const baseURL = (import.meta.server ? config.apiBase : config.public.apiBase) as string
     const apiKey = config.public.apiKey as string | undefined
 
     async function $api<T>(
@@ -34,8 +34,11 @@ export function useApi() {
             headers['Authorization'] = `Bearer ${token.value}`
         }
 
+        // Strip leading slash to prevent $fetch from resolving to root domain
+        const normalizedEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint
+
         try {
-            const response = await $fetch<T>(endpoint, {
+            const response = await $fetch<T>(normalizedEndpoint, {
                 baseURL,
                 method: options.method || 'GET',
                 headers,

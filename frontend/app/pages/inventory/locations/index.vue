@@ -48,7 +48,7 @@
               </div>
             </td>
           </tr>
-          <tr v-if="locations.length === 0">
+          <tr v-if="locations.length === 0 && !loading">
             <td colspan="4">
               <UiEmptyState 
                 title="No locations found" 
@@ -62,6 +62,14 @@
               </UiEmptyState>
             </td>
           </tr>
+        </tbody>
+        <tbody v-if="loading">
+             <tr v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-48"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-20"></div></td>
+             </tr>
         </tbody>
       </table>
       </div>
@@ -125,6 +133,7 @@ const pageSize = 10
 const showModal = ref(false)
 const editing = ref<Location | null>(null)
 const saving = ref(false)
+const loading = ref(true)
 
 // Delete state
 const showDeleteModal = ref(false)
@@ -146,11 +155,14 @@ function typeClass(type: string) {
 }
 
 async function fetchLocations() {
+  loading.value = true
   try {
     const response = await $api<{ data: Location[] }>('/locations')
     locations.value = response.data || []
   } catch (e) {
     toast.error('Failed to fetch locations')
+  } finally {
+    loading.value = false
   }
 }
 

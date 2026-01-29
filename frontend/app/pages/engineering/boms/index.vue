@@ -16,22 +16,22 @@
     <!-- Filter Tabs -->
     <div class="flex gap-2 border-b border-gray-200 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
       <button 
-        @click="filterType = ''" 
-        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap', filterType === '' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
+        @click="filters.type = ''" 
+        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap', filters.type === '' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
       >
-        All <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filterType === '' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-600']">{{ boms.length }}</span>
+        All <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filters.type === '' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-600']">{{ counts.all || total }}</span>
       </button>
       <button 
-        @click="filterType = 'normal'" 
-        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap', filterType === 'normal' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
+        @click="filters.type = 'normal'" 
+        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap', filters.type === 'normal' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
       >
-        Normal <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filterType === 'normal' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600']">{{ countByType('normal') }}</span>
+        Normal <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filters.type === 'normal' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600']">{{ counts.normal || 0 }}</span>
       </button>
       <button 
-        @click="filterType = 'phantom'" 
-        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap', filterType === 'phantom' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
+        @click="filters.type = 'phantom'" 
+        :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap', filters.type === 'phantom' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
       >
-        Phantom <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filterType === 'phantom' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600']">{{ countByType('phantom') }}</span>
+        Phantom <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filters.type === 'phantom' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600']">{{ counts.phantom || 0 }}</span>
       </button>
     </div>
 
@@ -58,7 +58,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="bom in paginatedBoms" :key="bom.id">
+          <tr v-for="bom in boms" :key="bom.id">
             <td>
                 <div 
                     class="w-10 h-10 rounded bg-gray-50 border border-gray-200 flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary-500 hover:ring-offset-1 transition-all"
@@ -117,7 +117,7 @@
               </div>
             </td>
           </tr>
-           <tr v-if="filteredBoms.length === 0">
+           <tr v-if="boms.length === 0 && !loading">
             <td colspan="9">
               <UiEmptyState 
                 title="No BOMs found" 
@@ -132,9 +132,27 @@
             </td>
           </tr>
         </tbody>
+        <tbody v-if="loading">
+          <tr v-for="i in 5" :key="i" class="animate-pulse">
+            <td class="px-6 py-4"><div class="w-10 h-10 bg-gray-200 rounded"></div></td>
+             <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+            <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-16"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+            <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-12"></div></td>
+            <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-16"></div></td>
+            <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-24"></div></td>
+          </tr>
+        </tbody>
       </table>
       </div>
-      <UiPagination v-model="currentPage" :total-items="filteredBoms.length" :page-size="pageSize" />
+      <UiPagination 
+        v-if="Math.ceil(total / perPage) > 1"
+        v-model="page" 
+        :total-items="total" 
+        :page-size="perPage" 
+      />
     </div>
 
 
@@ -321,7 +339,23 @@ const config = useRuntimeConfig()
 const masterStore = useMasterStore()
 const { getImageUrl } = useUtils()
 
-const boms = ref<(Bom & { lines?: BomLine[], operations?: Operation[] })[]>([])
+// Server Data Table
+const { 
+  items: boms, 
+  total, 
+  loading, 
+  counts, 
+  page, 
+  perPage, 
+  search, 
+  filters, 
+  refresh 
+} = useServerDataTable<Bom>({
+  url: 'boms',
+  perPage: 10,
+  initialFilters: { type: '' }
+})
+
 const products = computed(() => masterStore.products)
 const finishedGoods = computed(() => products.value.filter(p => p.type === 'finished'))
 const workCenters = computed(() => masterStore.workCenters)
@@ -329,10 +363,6 @@ const workCenters = computed(() => masterStore.workCenters)
 const showModal = ref(false)
 const editing = ref<Bom | null>(null)
 const saving = ref(false)
-const currentPage = ref(1)
-const pageSize = 10
-const search = ref('')
-const filterType = ref('')
 
 // Detail SlideOver State
 const showDetailModal = ref(false)
@@ -352,44 +382,19 @@ const form = ref({
   operations: [] as OperationForm[],
 })
 
-function countByType(type: string) {
-  return boms.value.filter(b => b.type === type).length
-}
-
-const filteredBoms = computed(() => {
-  return boms.value.filter(b => {
-    const matchesSearch = !search.value || 
-      b.product?.name.toLowerCase().includes(search.value.toLowerCase()) ||
-      b.product?.code.toLowerCase().includes(search.value.toLowerCase())
-    const matchesType = !filterType.value || b.type === filterType.value
-    return matchesSearch && matchesType
-  })
-})
-
-const paginatedBoms = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredBoms.value.slice(start, start + pageSize)
-})
-
-// Reset page on filter change
-watch([search, filterType], () => {
-  currentPage.value = 1
-})
-
-
 
 async function fetchData() {
   try {
-    const [bomRes] = await Promise.all([
-      $api<{ data: Bom[] }>('/boms'),
-      masterStore.fetchProducts(),
-      masterStore.fetchWorkCenters(),
-    ])
-    boms.value = bomRes.data || []
+     await Promise.all([
+        masterStore.fetchProducts(),
+        masterStore.fetchWorkCenters(),
+     ])
   } catch (e) {
-    toast.error('Failed to fetch data')
+     console.error(e)
   }
 }
+
+// Watchers handled by composable
 
 function addComponent() {
   form.value.lines.push({
@@ -503,7 +508,7 @@ async function save() {
       toast.success('BOM created successfully')
     }
     showModal.value = false
-    await fetchData()
+    refresh()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save BOM')
   } finally {
@@ -523,7 +528,7 @@ async function deleteBom() {
     await $api(`/boms/${deletingItem.value.id}`, { method: 'DELETE' })
     toast.success('BOM deleted successfully')
     showDeleteModal.value = false
-    await fetchData()
+    refresh()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete BOM')
   } finally {
@@ -574,6 +579,7 @@ function openImage(src?: string, alt?: string) {
 const route = useRoute()
 
 onMounted(async () => {
+    // initial fetch of master data
     await fetchData()
     if (route.query.id) {
         const id = Number(route.query.id)
@@ -584,6 +590,5 @@ onMounted(async () => {
     }
     }
 )
-
 
 </script>

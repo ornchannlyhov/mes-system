@@ -509,9 +509,9 @@ async function fetchCostAnalysis() {
     if (!mo.value) return
     costLoading.value = true
     try {
-        const res = await $api<any>(`/reporting/cost/${mo.value.id}`)
-        costSummary.value = res.summary
-        costDetails.value = res.details
+        const res = await $api<{ data: any }>(`/reporting/cost/${mo.value.id}`)
+        costSummary.value = res.data.summary || {}
+        costDetails.value = res.data.details || []
     } catch (e) {
         console.error('Failed to fetch cost analysis', e)
     } finally {

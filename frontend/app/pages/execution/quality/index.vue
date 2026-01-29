@@ -7,7 +7,7 @@
         <p class="text-gray-500 mt-1 hidden sm:block">Review production quality records</p>
       </div>
       <div class="flex gap-2">
-        <button class="btn-primary" @click="fetchData">
+        <button class="btn-primary" @click="refresh">
           <Icon name="heroicons:arrow-path" class="w-4 h-4" />
           <span class="hidden sm:inline">Refresh</span>
         </button>
@@ -57,7 +57,7 @@
          <input v-model="search" type="text" placeholder="Search by Manufacturing Order, Product..." class="input" />
       </div>
       <div class="w-64">
-         <select v-model="filterStatus" class="input">
+         <select v-model="filters.qa_status" class="input">
             <option value="">All Statuses</option>
             <option value="pass">Passed</option>
             <option value="fail">Failed</option>
@@ -79,7 +79,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="record in filteredRecords" :key="record.id">
+          <tr v-for="record in records" :key="record.id">
             <td>{{ formatDate(record.qa_at || record.finished_at) }}</td>
             <td class="font-medium">
                <div>{{ record.manufacturing_order?.name || 'N/A' }}</div>
@@ -97,77 +97,76 @@
             <td class="max-w-xs truncate" :title="record.qa_comments">{{ record.qa_comments || '-' }}</td>
             <td>{{ record.qa_user?.name || record.assigned_user?.name || 'N/A' }}</td>
           </tr>
-           <tr v-if="filteredRecords.length === 0">
+           <tr v-if="records.length === 0 && !loading">
               <td colspan="6" class="text-center py-8 text-gray-500">No QA records found</td>
            </tr>
+        </tbody>
+        <tbody v-if="loading">
+             <tr v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4">
+                    <div class="h-4 bg-gray-200 rounded w-48 mb-1"></div>
+                    <div class="h-3 bg-gray-200 rounded w-24"></div>
+                </td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-6 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-48"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+             </tr>
         </tbody>
       </table>
     </div>
      <UiPagination
-      v-if="records.length > pageSize"
-      v-model="currentPage"
-      :total-items="records.length"
-      :page-size="pageSize"
+      v-if="Math.ceil(total / perPage) > 1"
+      v-model="page"
+      :total-items="total"
+      :page-size="perPage"
     />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useServerDataTable } from '~/composables/useServerDataTable'
 import type { WorkOrder } from '~/types/models'
 
 const { $api } = useApi()
 const { formatDate } = useUtils()
 
-const records = ref<WorkOrder[]>([])
-const filterStatus = ref('')
-const search = ref('')
-const currentPage = ref(1)
-const pageSize = 15
-
-const stats = computed(() => {
-    const pass = records.value.filter(r => r.qa_status === 'pass').length
-    const fail = records.value.filter(r => r.qa_status === 'fail').length
-    return {
-        pass,
-        fail,
-        total: pass + fail
-    }
+// Data Table
+const { 
+  items: records, 
+  total, 
+  loading, 
+  page, 
+  perPage, 
+  search, 
+  filters, 
+  refresh 
+} = useServerDataTable<WorkOrder>({
+  url: 'work-orders',
+  perPage: 15,
+  initialFilters: { status: 'done', has_qa: 'true', qa_status: '' }
 })
 
-const filteredRecords = computed(() => {
-    let result = records.value
-    
-    // Status Filter
-    if (filterStatus.value) {
-        result = result.filter(r => r.qa_status === filterStatus.value)
-    }
+const stats = ref<{ pass: number, fail: number, total: number }>({ pass: 0, fail: 0, total: 0 })
 
-    // Search
-    if (search.value) {
-        const q = search.value.toLowerCase()
-        result = result.filter(r => 
-            r.manufacturing_order?.name.toLowerCase().includes(q) ||
-            r.manufacturing_order?.product?.name.toLowerCase().includes(q) ||
-            r.operation?.name.toLowerCase().includes(q) ||
-            (r.qa_comments || '').toLowerCase().includes(q)
-        )
-    }
-
-    // Pagination
-    const start = (currentPage.value - 1) * pageSize
-    return result.slice(start, start + pageSize)
-})
-
-async function fetchData() {
+async function fetchStats() {
     try {
-        // Fetch all completed work orders
-        const res = await $api<{ data: WorkOrder[] }>('/work-orders', { query: { status: 'done', per_page: 100 }})
-        // Filter locally for those with QA status
-        records.value = (res.data || []).filter(wo => wo.qa_status && wo.qa_status !== 'pending')
+        const res = await $api<any>('/work-orders', { query: { per_page: 1 } })
+        if (res.qa_counts || res.meta?.qa_counts) {
+            const counts = res.qa_counts || res.meta?.qa_counts
+            stats.value = {
+                pass: counts.pass || 0,
+                fail: counts.fail || 0,
+                total: (counts.pass || 0) + (counts.fail || 0)
+            }
+        }
     } catch (e) {
-        // quiet fail
+        // silent fail
     }
 }
 
-onMounted(fetchData)
+onMounted(() => {
+    fetchStats()
+})
 </script>

@@ -194,11 +194,11 @@ function typeClass(type: string) {
 async function fetchDetails() {
   loading.value = true
   try {
-    const res = await $api<any>(`/products/${props.productId}`)
-    product.value = res
-    relatedBoms.value = res.boms || []
-    usedInBoms.value = res.used_in_boms || [] // from backend update
-    recentMos.value = res.recent_mos || [] // from backend update
+    const res = await $api<{ data: any }>(`/products/${props.productId}`)
+    product.value = res.data
+    relatedBoms.value = res.data.boms || []
+    usedInBoms.value = res.data.used_in_boms || [] // from backend update
+    recentMos.value = res.data.recent_mos || [] // from backend update
     
     // Set default tab based on type
     if (product.value && product.value.type === 'finished') {

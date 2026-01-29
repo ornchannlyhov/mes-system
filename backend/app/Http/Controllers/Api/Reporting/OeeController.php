@@ -2,22 +2,22 @@
 
 namespace App\Http\Controllers\Api\Reporting;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use Illuminate\Http\Request;
 
 use App\Models\OeeRecord;
 
 
-class OeeController extends Controller
+class OeeController extends BaseController
 {
-
     public function dailyStats(Request $request)
     {
-        $query = OeeRecord::with('workCenter');
-
-        if ($request->has('work_center_id')) {
-            $query->where('work_center_id', $request->work_center_id);
-        }
+        $query = OeeRecord::with('workCenter')
+            ->applyStandardFilters(
+                $request,
+                [], // No direct text fields to search really, maybe work center name via relation if needed
+                ['work_center_id'] // Filterable
+            );
 
         if ($request->has('start_date')) {
             $query->where('record_date', '>=', $request->start_date);
@@ -27,6 +27,8 @@ class OeeController extends Controller
             $query->where('record_date', '<=', $request->end_date);
         }
 
-        return response()->json($query->orderBy('record_date', 'desc')->paginate($request->get('per_page', 10)));
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 10))
+        );
     }
 }

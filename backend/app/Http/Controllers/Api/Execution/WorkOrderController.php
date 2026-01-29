@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\Execution;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Execution\StoreWorkOrderRequest;
 use App\Models\WorkOrder;
 use Illuminate\Http\Request;
@@ -11,7 +11,7 @@ use App\Http\Requests\Execution\UpdateWorkOrderRequest;
 use App\Http\Requests\Execution\FinishWorkOrderRequest;
 use App\Services\OeeService;
 
-class WorkOrderController extends Controller
+class WorkOrderController extends BaseController
 {
     public function __construct(
         protected OeeService $oeeService,
@@ -21,36 +21,53 @@ class WorkOrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = WorkOrder::with(['manufacturingOrder.product', 'workCenter', 'assignedUser', 'operation', 'qaUser']);
+        $query = WorkOrder::with(['manufacturingOrder.product', 'workCenter', 'assignedUser', 'operation', 'qaUser'])
+            ->applyStandardFilters(
+                $request,
+                [], // Text search handled via relations below
+                ['status', 'work_center_id', 'assigned_to', 'manufacturing_order_id', 'qa_status'] // Filterable
+            );
 
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->has('work_center_id')) {
-            $query->where('work_center_id', $request->work_center_id);
-        }
-        if ($request->has('assigned_to')) {
-            $query->where('assigned_to', $request->assigned_to);
-        }
-        if ($request->has('manufacturing_order_id')) {
-            $query->where('manufacturing_order_id', $request->manufacturing_order_id);
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('manufacturingOrder', function ($mo) use ($search) {
+                    $mo->where('name', 'ilike', "%{$search}%")
+                        ->orWhere('id', 'like', "%{$search}%");
+                })->orWhereHas('manufacturingOrder.product', function ($prod) use ($search) {
+                    $prod->where('name', 'ilike', "%{$search}%")
+                        ->orWhere('code', 'ilike', "%{$search}%");
+                })->orWhereHas('workCenter', function ($wc) use ($search) {
+                    $wc->where('name', 'ilike', "%{$search}%");
+                })->orWhereHas('operation', function ($op) use ($search) {
+                    $op->where('name', 'ilike', "%{$search}%");
+                });
+            });
         }
 
-        $orders = $query->orderBy('sequence')->get();
+        if ($request->has('has_qa') && $request->has_qa === 'true') {
+            $query->whereNotNull('qa_status')->where('qa_status', '!=', 'pending');
+        }
 
-        return response()->json(['data' => $orders]);
+        $counts = $this->getStatusCounts(WorkOrder::query(), 'status');
+        $qaCounts = $this->getStatusCounts(WorkOrder::query(), 'qa_status');
+
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 10)),
+            ['counts' => $counts, 'qa_counts' => $qaCounts]
+        );
     }
 
     public function store(StoreWorkOrderRequest $request)
     {
         $workOrder = WorkOrder::create($request->validated());
 
-        return response()->json($workOrder->load(['operation', 'workCenter']), 201);
+        return $this->success($workOrder->load(['operation', 'workCenter']), [], 201);
     }
 
     public function show(WorkOrder $workOrder)
     {
-        return response()->json(
+        return $this->success(
             $workOrder->load([
                 'manufacturingOrder.product',
                 'operation',
@@ -73,14 +90,14 @@ class WorkOrderController extends Controller
 
         $workOrder->update($data);
 
-        return response()->json($workOrder);
+        return $this->success($workOrder);
     }
 
     public function destroy(WorkOrder $workOrder)
     {
         $workOrder->delete();
 
-        return response()->json(null, 204);
+        return $this->success(null, [], 204);
     }
 
     // Start the work order timer
@@ -88,9 +105,9 @@ class WorkOrderController extends Controller
     {
         try {
             $this->service->start($workOrder);
-            return response()->json($workOrder);
+            return $this->success($workOrder);
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return $this->error($e->getMessage(), 422);
         }
     }
 
@@ -99,9 +116,9 @@ class WorkOrderController extends Controller
     {
         try {
             $this->service->pause($workOrder);
-            return response()->json($workOrder);
+            return $this->success($workOrder);
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return $this->error($e->getMessage(), 422);
         }
     }
 
@@ -110,9 +127,9 @@ class WorkOrderController extends Controller
     {
         try {
             $this->service->resume($workOrder);
-            return response()->json($workOrder);
+            return $this->success($workOrder);
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return $this->error($e->getMessage(), 422);
         }
     }
 
@@ -120,13 +137,16 @@ class WorkOrderController extends Controller
     public function finish(FinishWorkOrderRequest $request, WorkOrder $workOrder)
     {
         $validated = $request->validated();
-        $qtyProduced = $validated['quantity_produced'] !== null ? (float) $validated['quantity_produced'] : null;
+        // Handle explicit null or float casting
+        $qtyProduced = isset($validated['quantity_produced']) && $validated['quantity_produced'] !== ''
+            ? (float) $validated['quantity_produced']
+            : null;
 
         try {
             $this->service->finish($workOrder, $qtyProduced);
-            return response()->json($workOrder);
+            return $this->success($workOrder);
         } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return $this->error($e->getMessage(), 422);
         }
     }
 }

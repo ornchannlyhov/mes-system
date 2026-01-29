@@ -81,6 +81,7 @@
                     tooltip="Edit Adjustment"
                   />
                   <UiIconButton
+                    v-if="!['manufacturing_consumption', 'manufacturing_production'].includes(adj.reason)"
                     @click="confirmDelete(adj)"
                     icon="heroicons:trash"
                     tooltip="Delete Adjustment"
@@ -89,7 +90,7 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="filteredAdjustments.length === 0">
+            <tr v-if="filteredAdjustments.length === 0 && !loading">
               <td colspan="9">
                 <UiEmptyState 
                   title="No adjustments found" 
@@ -103,6 +104,19 @@
                 </UiEmptyState>
               </td>
             </tr>
+          </tbody>
+          <tbody v-if="loading">
+             <tr v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-48"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-20"></div></td>
+             </tr>
           </tbody>
         </table>
       </div>
@@ -299,6 +313,7 @@ const deletingItem = ref<StockAdjustment | null>(null)
 const currentPage = ref(1)
 const pageSize = 10
 const filterReason = ref('')
+const loading = ref(true)
 
 const tabs = [
   { label: 'All', value: '' },
@@ -433,6 +448,7 @@ async function fetchLots() {
 }
 
 async function fetchData() {
+  loading.value = true
   try {
     const [adjRes] = await Promise.all([
       $api<{ data: StockAdjustment[] }>('/stock-adjustments'),
@@ -442,6 +458,8 @@ async function fetchData() {
     adjustments.value = adjRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
+  } finally {
+    loading.value = false
   }
 }
 

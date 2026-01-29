@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Api\Inventory;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use App\Services\StockService;
 use App\Http\Requests\Inventory\StoreStockTransferRequest;
 use App\Http\Requests\Inventory\StoreStockReserveRequest;
 use App\Http\Requests\Inventory\StoreStockReleaseRequest;
 
-class StockMovementController extends Controller
+class StockMovementController extends BaseController
 {
     public function __construct(
         protected StockService $stockService
@@ -19,9 +19,9 @@ class StockMovementController extends Controller
     {
         try {
             $result = $this->stockService->transfer($request->validated());
-            return response()->json($result);
+            return $this->success($result, ['message' => 'Stock transferred successfully']);
         } catch (\InvalidArgumentException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return $this->error($e->getMessage(), 422);
         }
     }
 
@@ -36,9 +36,9 @@ class StockMovementController extends Controller
                 $validated['quantity'],
                 $validated['lot_id'] ?? null
             );
-            return response()->json($stock);
+            return $this->success($stock, ['message' => 'Stock reserved successfully']);
         } catch (\InvalidArgumentException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
+            return $this->error($e->getMessage(), 422);
         }
     }
 
@@ -46,13 +46,16 @@ class StockMovementController extends Controller
     {
         $validated = $request->validated();
 
-        $stock = $this->stockService->release(
-            $validated['product_id'],
-            $validated['location_id'],
-            $validated['quantity'],
-            $validated['lot_id'] ?? null
-        );
-
-        return response()->json($stock);
+        try {
+            $stock = $this->stockService->release(
+                $validated['product_id'],
+                $validated['location_id'],
+                $validated['quantity'],
+                $validated['lot_id'] ?? null
+            );
+            return $this->success($stock, ['message' => 'Stock released successfully']);
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
     }
 }

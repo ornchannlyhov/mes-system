@@ -1,4 +1,4 @@
-FROM serversideup/php:8.2-fpm-nginx
+FROM serversideup/php:8.4-fpm-nginx
 
 # Install system dependencies
 USER root
@@ -32,9 +32,3 @@ COPY --chown=www-data:www-data . .
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
-
-# Optimizing Configuration loading
-RUN php artisan config:cache
-RUN php artisan event:cache
-RUN php artisan route:cache
-RUN php artisan view:cache

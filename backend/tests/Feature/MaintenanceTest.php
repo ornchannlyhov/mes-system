@@ -36,7 +36,7 @@ class MaintenanceTest extends TestCase
         ];
         $response = $this->withHeaders($this->headers)->postJson('/api/equipment', $payload);
         $response->assertStatus(201);
-        $eqId = $response->json('id');
+        $eqId = $response->json('data.id');
 
         // 2. Schedule Maintenance
         $schedulePayload = [

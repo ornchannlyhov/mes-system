@@ -82,7 +82,7 @@
                 />
             </td>
           </tr>
-          <tr v-if="filteredStock.length === 0">
+          <tr v-if="filteredStock.length === 0 && !loading">
             <td colspan="7">
               <UiEmptyState 
                 title="No stock found" 
@@ -91,6 +91,18 @@
               />
             </td>
           </tr>
+        </tbody>
+        <tbody v-if="loading">
+             <tr v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="w-10 h-10 bg-gray-200 rounded"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-48"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-10"></div></td>
+             </tr>
         </tbody>
       </table>
       </div>
@@ -149,7 +161,7 @@
           <div>
             <div class="flex items-center justify-between mb-4">
                  <h4 class="font-medium text-gray-900">Movement History</h4>
-                  <div v-if="loadingHistory" class="loading-spinner w-4 h-4 text-primary-600"></div>
+                  <!-- Spinner replaced by skeletons in table -->
             </div>
             
             <div class="overflow-x-auto">
@@ -165,6 +177,15 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
+                        <tr v-if="loadingHistory" v-for="i in 3" :key="`hskel-${i}`" class="animate-pulse">
+                            <td class="px-3 py-2"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                            <td class="px-3 py-2"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                            <td class="px-3 py-2"><div class="h-4 bg-gray-200 rounded w-12 ml-auto"></div></td>
+                            <td class="px-3 py-2"><div class="h-4 bg-gray-200 rounded w-20"></div></td>
+                            <td class="px-3 py-2"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                            <td class="px-3 py-2"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                        </tr>
+                        <template v-else>
                         <tr v-for="adj in paginatedHistory" :key="adj.id">
                             <td class="px-3 py-2 text-sm text-gray-600 whitespace-nowrap">{{ formatDate(adj.created_at) }}</td>
                             <td class="px-3 py-2 whitespace-nowrap">
@@ -192,11 +213,12 @@
                             </td>
                             <td class="px-3 py-2 text-sm text-gray-500">{{ adj.user?.name || '-' }}</td>
                         </tr>
-                        <tr v-if="adjustments.length === 0 && !loadingHistory">
+                        <tr v-if="adjustments.length === 0">
                             <td colspan="6" class="px-3 py-8 text-center text-gray-500 text-sm">
                                 No history found for this item.
                             </td>
                         </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>
@@ -223,6 +245,7 @@ const selectedLocation = ref('')
 const search = ref('')
 const currentPage = ref(1)
 const pageSize = 10
+const loading = ref(true)
 const { getImageUrl, formatDate } = useUtils()
 
 // Search similar to adjustments page logic
@@ -321,6 +344,7 @@ watch([search, selectedLocation], () => {
 })
 
 async function fetchData() {
+  loading.value = true
   try {
     const [stockRes] = await Promise.all([
       $api<{ data: Stock[] }>('/stocks'),
@@ -329,6 +353,8 @@ async function fetchData() {
     stocks.value = stockRes.data || []
   } catch (e) {
     toast.error('Failed to fetch stock data')
+  } finally {
+    loading.value = false
   }
 }
 

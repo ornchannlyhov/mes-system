@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 
 class Equipment extends Model
 {
-    use \App\Traits\ScopeByOrganization;
+    use \App\Traits\ScopeByOrganization, \App\Traits\Searchable;
     use SoftDeletes;
 
     protected $table = 'equipment';

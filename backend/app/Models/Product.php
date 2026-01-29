@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Product extends Model
 {
     use \App\Traits\ScopeByOrganization;
+    use \App\Traits\Searchable;
     use SoftDeletes;
 
     protected $fillable = [

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class CostEntry extends Model
 {
-    use \App\Traits\ScopeByOrganization;
+    use \App\Traits\ScopeByOrganization, \App\Traits\Searchable;
 
     protected $fillable = [
         'organization_id',

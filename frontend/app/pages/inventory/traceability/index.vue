@@ -77,7 +77,7 @@
                 />
               </td>
             </tr>
-            <tr v-if="lots.length === 0">
+            <tr v-if="lots.length === 0 && !lotsLoading">
               <td colspan="5">
                 <UiEmptyState 
                   title="No lots found" 
@@ -91,6 +91,15 @@
                 </UiEmptyState>
               </td>
             </tr>
+          </tbody>
+          <tbody v-if="lotsLoading">
+             <tr v-for="i in 5" :key="`skel-lot-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-20"></div></td>
+             </tr>
           </tbody>
         </table>
       </div>
@@ -140,7 +149,7 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="serials.length === 0">
+            <tr v-if="serials.length === 0 && !serialsLoading">
               <td colspan="5">
                 <UiEmptyState 
                   title="No serial numbers found" 
@@ -149,6 +158,15 @@
                 />
               </td>
             </tr>
+          </tbody>
+          <tbody v-if="serialsLoading">
+             <tr v-for="i in 5" :key="`skel-serial-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-32"></div></td>
+             </tr>
           </tbody>
         </table>
       </div>
@@ -282,6 +300,7 @@ const showDeleteLotModal = ref(false)
 const lotDeleting = ref(false)
 const deletingLot = ref<Lot | null>(null)
 const lotForm = ref({ name: '', product_id: null as number | null, expiry_date: '', initial_qty: 0 })
+const lotsLoading = ref(true)
 
 // Serials State
 const serials = ref<Serial[]>([])
@@ -295,6 +314,7 @@ const showDeleteSerialModal = ref(false)
 const serialDeleting = ref(false)
 const deletingSerial = ref<Serial | null>(null)
 const serialForm = ref({ name: '', status: 'active' })
+const serialsLoading = ref(false)
 
 // Genealogy State
 const showGenealogy = ref(false)
@@ -306,6 +326,7 @@ const products = computed(() => masterStore.products)
 
 // Lots Functions
 async function fetchLots(page = 1) {
+  lotsLoading.value = true
   try {
     const [lotRes] = await Promise.all([
       $api<PaginatedResponse<Lot>>(`/lots?page=${page}`),
@@ -317,6 +338,8 @@ async function fetchLots(page = 1) {
     lotCurrentPage.value = lotRes.current_page || 1
   } catch (e) {
     toast.error('Failed to fetch lots')
+  } finally {
+    lotsLoading.value = false
   }
 }
 
@@ -378,6 +401,7 @@ async function handleDeleteLot() {
 
 // Serials Functions
 async function fetchSerials(page = 1) {
+  serialsLoading.value = true
   try {
     const res = await $api<PaginatedResponse<Serial>>(`/serials?page=${page}`)
     serials.value = res.data || []
@@ -386,6 +410,8 @@ async function fetchSerials(page = 1) {
     serialCurrentPage.value = res.current_page
   } catch (e) {
     toast.error('Failed to fetch serials')
+  } finally {
+    serialsLoading.value = false
   }
 }
 

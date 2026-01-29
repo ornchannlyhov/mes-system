@@ -65,7 +65,7 @@
               </div>
             </td>
           </tr>
-          <tr v-if="requests.length === 0">
+          <tr v-if="requests.length === 0 && !loading">
             <td colspan="9">
               <UiEmptyState 
                 title="No maintenance requests" 
@@ -79,6 +79,19 @@
               </UiEmptyState>
             </td>
           </tr>
+        </tbody>
+        <tbody v-if="loading">
+             <tr v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-48"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-32"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-5 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-20"></div></td>
+             </tr>
         </tbody>
       </table>
       </div>
@@ -143,6 +156,7 @@ const saving = ref(false)
 const deleting = ref(false)
 const currentPage = ref(1)
 const pageSize = 10
+const loading = ref(true)
 
 const editingRequest = ref<MaintenanceRequest | null>(null)
 const deletingRequest = ref<MaintenanceRequest | null>(null)
@@ -150,6 +164,7 @@ const deletingRequest = ref<MaintenanceRequest | null>(null)
 const form = ref({ description: '', equipment_id: null as number | null, priority: 'normal', request_type: 'corrective' })
 
 async function fetchData() {
+  loading.value = true
   try {
     const [reqRes, eqRes] = await Promise.all([
       $api<{ data: MaintenanceRequest[] }>('/maintenance/requests'),
@@ -159,6 +174,8 @@ async function fetchData() {
     equipment.value = eqRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
+  } finally {
+    loading.value = false
   }
 }
 

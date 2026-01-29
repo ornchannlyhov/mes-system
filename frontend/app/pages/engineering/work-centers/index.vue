@@ -14,6 +14,22 @@
 
     <!-- Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div v-if="loading" v-for="i in 8" :key="`skel-${i}`" class="card p-4 animate-pulse">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-9 h-9 bg-gray-200 rounded-lg"></div>
+            <div>
+              <div class="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+              <div class="h-3 bg-gray-200 rounded w-16"></div>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-between mt-4">
+             <div class="h-3 bg-gray-200 rounded w-20"></div>
+             <div class="h-3 bg-gray-200 rounded w-16"></div>
+        </div>
+      </div>
+
       <div v-for="wc in paginatedWorkCenters" :key="wc.id" class="card p-4 hover:shadow-soft transition-shadow">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
@@ -66,7 +82,7 @@
       </div>
 
       <!-- Empty state -->
-      <div v-if="workCenters.length === 0" class="col-span-full">
+      <div v-if="workCenters.length === 0 && !loading" class="col-span-full">
         <UiEmptyState 
           title="No work centers found" 
           description="Define work centers to track capacity and cost."
@@ -158,6 +174,7 @@ const workCenters = ref<WorkCenter[]>([])
 const showModal = ref(false)
 const editing = ref<WorkCenter | null>(null)
 const saving = ref(false)
+const loading = ref(true)
 
 // Pagination
 const currentPage = ref(1)
@@ -194,11 +211,14 @@ function statusDotClass(status: string) {
 }
 
 async function fetchData() {
+  loading.value = true
   try {
     const res = await $api<{ data: WorkCenter[] }>('/work-centers')
     workCenters.value = res.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
+  } finally {
+    loading.value = false
   }
 }
 

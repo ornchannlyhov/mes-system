@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class UnbuildOrder extends Model
 {
-    use \App\Traits\ScopeByOrganization;
+    use \App\Traits\ScopeByOrganization, \App\Traits\Searchable;
 
     protected $fillable = [
         'name',

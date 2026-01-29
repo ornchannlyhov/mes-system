@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\Engineering;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Engineering\StoreBomRequest;
 use App\Models\Bom;
 use Illuminate\Http\Request;
@@ -12,38 +12,50 @@ use App\Http\Requests\Engineering\UpdateBomLineRequest;
 use App\Http\Requests\Engineering\StoreBomOperationRequest;
 use App\Http\Requests\Engineering\UpdateBomOperationRequest;
 
-class BomController extends Controller
+class BomController extends BaseController
 {
     public function __construct(
         protected \App\Services\BomService $service
     ) {
     }
+
     public function index(Request $request)
     {
-        $query = Bom::with(['product', 'lines.product', 'operations.workCenter']);
+        $query = Bom::with(['product', 'lines.product', 'operations.workCenter'])
+            ->applyStandardFilters(
+                $request,
+                [], // No searching by text on base BOM table yet, maybe product name?
+                ['product_id', 'is_active', 'type'] // Exact filters
+            );
 
-        if ($request->has('product_id')) {
-            $query->where('product_id', $request->product_id);
+        // For BOMs, we might want to search by Product Name.
+        // This handles standard filters. If we need relationship search, we add it here manually.
+        if ($request->has('search') && $request->search) {
+            $search = strtolower($request->search);
+            $query->orWhereHas('product', function ($q) use ($search) {
+                $q->whereRaw('LOWER(name) LIKE ?', ["%{$search}%"])
+                    ->orWhereRaw('LOWER(code) LIKE ?', ["%{$search}%"]);
+            });
         }
-        if ($request->has('is_active')) {
-            $query->where('is_active', $request->boolean('is_active'));
-        }
 
-        $boms = $query->orderBy('id', 'desc')->get();
+        $counts = $this->getStatusCounts(Bom::query(), 'type');
 
-        return response()->json(['data' => $boms]);
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 10)),
+            ['counts' => $counts]
+        );
     }
 
     public function store(StoreBomRequest $request)
     {
         $bom = $this->service->create($request->validated());
 
-        return response()->json($bom, 201);
+        return $this->success($bom, [], 201);
     }
 
     public function show(Bom $bom)
     {
-        return response()->json(
+        return $this->success(
             $bom->load(['product', 'lines.product', 'operations.workCenter'])
         );
     }
@@ -52,14 +64,14 @@ class BomController extends Controller
     {
         $bom = $this->service->update($bom, $request->validated());
 
-        return response()->json($bom);
+        return $this->success($bom);
     }
 
     public function destroy(Bom $bom)
     {
         $bom->delete();
 
-        return response()->json(null, 204);
+        return $this->success(null, [], 204);
     }
 
     // ===== BOM Lines (Components) =====
@@ -73,7 +85,7 @@ class BomController extends Controller
             'sequence' => $validated['sequence'] ?? $bom->lines()->count(),
         ]);
 
-        return response()->json($line->load('product'), 201);
+        return $this->success($line->load('product'), [], 201);
     }
 
     public function updateLine(UpdateBomLineRequest $request, Bom $bom, $lineId)
@@ -84,7 +96,7 @@ class BomController extends Controller
 
         $line->update($validated);
 
-        return response()->json($line->load('product'));
+        return $this->success($line->load('product'));
     }
 
     public function destroyLine(Bom $bom, $lineId)
@@ -92,7 +104,7 @@ class BomController extends Controller
         $line = $bom->lines()->findOrFail($lineId);
         $line->delete();
 
-        return response()->json(null, 204);
+        return $this->success(null, [], 204);
     }
 
     // ===== BOM Operations (Routing) =====
@@ -109,7 +121,7 @@ class BomController extends Controller
             'instruction_file_url' => $validated['instruction_file_url'] ?? null,
         ]);
 
-        return response()->json($operation->load('workCenter'), 201);
+        return $this->success($operation->load('workCenter'), [], 201);
     }
 
     public function updateOperation(UpdateBomOperationRequest $request, Bom $bom, $operationId)
@@ -120,7 +132,7 @@ class BomController extends Controller
 
         $operation->update($validated);
 
-        return response()->json($operation->load('workCenter'));
+        return $this->success($operation->load('workCenter'));
     }
 
     public function destroyOperation(Bom $bom, $operationId)
@@ -128,6 +140,6 @@ class BomController extends Controller
         $operation = $bom->operations()->findOrFail($operationId);
         $operation->delete();
 
-        return response()->json(null, 204);
+        return $this->success(null, [], 204);
     }
 }

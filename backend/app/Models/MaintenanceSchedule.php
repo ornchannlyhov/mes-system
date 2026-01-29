@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class MaintenanceSchedule extends Model
 {
     use \App\Traits\ScopeByOrganization;
+    use \App\Traits\ScopeByOrganization, \App\Traits\Searchable;
     use SoftDeletes;
 
     protected $fillable = [

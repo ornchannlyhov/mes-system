@@ -34,8 +34,10 @@ class ExecutionTest extends TestCase
         $apiKey = explode(',', config('app.api_keys'))[0];
         $this->headers = ['X-API-Key' => $apiKey];
 
-        $this->user = User::factory()->create();
-        $this->organizationId = $this->user->organization_id;
+        // Create user with organization
+        $org = \App\Models\Organization::create(['name' => 'Test Org']);
+        $this->user = User::factory()->create(['organization_id' => $org->id]);
+        $this->organizationId = $org->id;
         $token = $this->user->createToken('test')->plainTextToken;
         $this->headers['Authorization'] = 'Bearer ' . $token;
 
@@ -109,7 +111,7 @@ class ExecutionTest extends TestCase
 
         $response = $this->withHeaders($this->headers)->postJson('/api/manufacturing-orders', $moPayload);
         $response->assertStatus(201);
-        $moId = $response->json('id');
+        $moId = $response->json('data.id');
 
         // Confirm
         $this->withHeaders($this->headers)->postJson("/api/manufacturing-orders/{$moId}/confirm")
@@ -185,7 +187,7 @@ class ExecutionTest extends TestCase
 
         $response = $this->withHeaders($this->headers)->postJson('/api/work-orders', $woPayload);
         $response->assertStatus(201);
-        $woId = $response->json('id');
+        $woId = $response->json('data.id');
 
         // Read
         $this->withHeaders($this->headers)->getJson("/api/work-orders/{$woId}")
@@ -308,7 +310,7 @@ class ExecutionTest extends TestCase
 
         $response = $this->withHeaders($this->headers)->postJson('/api/unbuild-orders', $unbuildPayload);
         $response->assertStatus(201);
-        $unbuildId = $response->json('id');
+        $unbuildId = $response->json('data.id');
 
         // List
         $this->withHeaders($this->headers)->getJson('/api/unbuild-orders')

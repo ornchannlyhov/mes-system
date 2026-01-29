@@ -302,7 +302,7 @@ class ClothingSeeder extends Seeder
 
                 // Complete first work order for one of them
                 if ($i % 2 == 0) {
-                    $wo = $mo->workOrders()->first();
+                    $wo = \App\Models\WorkOrder::where('manufacturing_order_id', $mo->id)->orderBy('sequence')->first();
                     $wo->update([
                         'status' => 'done',
                         'started_at' => now()->subHours(2),
@@ -321,20 +321,22 @@ class ClothingSeeder extends Seeder
 
                 // Finish all work orders
                 foreach ($mo->workOrders as $wo) {
+                    $durationActual = $wo->duration_expected * rand(90, 110) / 100; // Vary duration +/- 10%
+
                     $wo->update([
                         'status' => 'done',
                         'started_at' => now()->subHours(5),
-                        'finished_at' => now()->subHours(4),
-                        'duration_actual' => $wo->duration_expected,
+                        'actual_start' => now()->subHours(5), // Needed for OEE
+                        'finished_at' => now()->subHours(5)->addMinutes($durationActual),
+                        'duration_actual' => $durationActual,
                         'quantity_produced' => $mo->qty_to_produce // Match produced
                     ]);
 
                     // Random QA
                     if ($wo->operation->needs_quality_check) {
                         $pass = rand(0, 1) === 1;
-                        // Leave one without QA record to test "needs QA" button
                         if ($i == 9 && $wo->sequence == 20) {
-                            // Do nothing, leave QA null
+                            // Do nothing
                         } else {
                             $wo->update([
                                 'qa_status' => $pass ? 'pass' : 'fail',
@@ -343,6 +345,24 @@ class ClothingSeeder extends Seeder
                                 'qa_at' => now()->subMinutes(120)
                             ]);
                         }
+                    }
+
+                    // Calculate OEE
+                    $oeeService->calculate($wo);
+
+                    // Create Labor Cost
+                    if ($wo->workCenter && $wo->workCenter->cost_per_hour > 0) {
+                        $laborCost = ($durationActual / 60) * $wo->workCenter->cost_per_hour;
+                        \App\Models\CostEntry::create([
+                            'manufacturing_order_id' => $mo->id,
+                            'product_id' => $mo->product_id,
+                            'cost_type' => 'labor',
+                            'quantity' => $durationActual / 60, // Hours
+                            'unit_cost' => $wo->workCenter->cost_per_hour,
+                            'total_cost' => $laborCost,
+                            'notes' => 'Labor: ' . $wo->operation->name,
+                            'work_order_id' => $wo->id,
+                        ]);
                     }
                 }
 

@@ -239,6 +239,7 @@ export interface Scrap {
     reason: string
     manufacturing_order_id?: number
     created_at: string
+    cost?: number
 }
 
 export interface UnbuildOrder {

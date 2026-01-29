@@ -39,7 +39,7 @@ class InventoryTest extends TestCase
         $response = $this->withHeaders($this->headers)->postJson('/api/locations', $payload);
         $response->assertStatus(201)
             ->assertJsonFragment(['name' => 'Warehouse A']);
-        $locationId = $response->json('id');
+        $locationId = $response->json('data.id');
 
         // Read
         $this->withHeaders($this->headers)->getJson("/api/locations/{$locationId}")

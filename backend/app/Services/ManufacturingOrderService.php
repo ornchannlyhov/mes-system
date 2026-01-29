@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ManufacturingOrder;
 use App\Models\Consumption;
 use App\Models\WorkOrder;
+use App\Models\Scrap;
 use Illuminate\Support\Facades\DB;
 
 class ManufacturingOrderService
@@ -22,6 +23,10 @@ class ManufacturingOrderService
         return DB::transaction(function () use ($data) {
             $data['name'] = ManufacturingOrder::generateName();
             $data['status'] = 'draft';
+
+            if (auth()->check() && !isset($data['organization_id'])) {
+                $data['organization_id'] = auth()->user()->organization_id;
+            }
 
             $mo = ManufacturingOrder::create($data);
 
@@ -212,6 +217,11 @@ class ManufacturingOrderService
                     $actualQty = $actualConsumptions[$consumption->id]['qty_consumed'];
                 }
 
+                // Calculate Scrapped Quantity for this component
+                $scrappedQty = Scrap::where('manufacturing_order_id', $mo->id)
+                    ->where('product_id', $consumption->product_id)
+                    ->sum('quantity');
+
                 // Use the location we reserved from
                 $sourceLocationId = $consumption->location_id;
 
@@ -226,16 +236,24 @@ class ManufacturingOrderService
                             $consumption->lot_id
                         );
 
-                        // Actually consume the stock (Subtract ACTUAL amount)
-                        $this->stockService->adjust($location, [
-                            'product_id' => $consumption->product_id,
-                            'quantity' => $actualQty,
-                            'type' => 'subtract',
-                            'lot_id' => $consumption->lot_id,
-                            'reason' => 'manufacturing_consumption',
-                            'reference' => $mo->name,
-                            'notes' => 'Consumed for MO #' . $mo->id
-                        ]);
+                        // Deduct ONLY what hasn't been deducted via Scrap
+                        // Actual Consumed = Total Used. Scrap = Wasted.
+                        // If Scrapped, Stock was already deducted in ScrapController.
+                        // So we deduct (Actual - Scrapped).
+                        $qtyToDeduct = max(0, $actualQty - $scrappedQty);
+
+                        // Actually consume the stock (Subtract NET amount)
+                        if ($qtyToDeduct > 0) {
+                            $this->stockService->adjust($location, [
+                                'product_id' => $consumption->product_id,
+                                'quantity' => $qtyToDeduct,
+                                'type' => 'subtract',
+                                'lot_id' => $consumption->lot_id,
+                                'reason' => 'manufacturing_consumption',
+                                'reference' => $mo->name,
+                                'notes' => 'Consumed for MO #' . $mo->id . ($scrappedQty > 0 ? " (Net of $scrappedQty scrap)" : '')
+                            ]);
+                        }
                     }
                 }
 
@@ -245,7 +263,12 @@ class ManufacturingOrderService
                     $product = \App\Models\Product::find($consumption->product_id);
 
                 $costPerUnit = $product->cost ?? 0;
-                $varianceQty = $actualQty - $consumption->qty_planned;
+
+                // Calculate Variance: Actual - Planned - Scrapped
+                // Scrapped items have their own CostEntry (type=scrap).
+                // Planned items have their own CostEntry (type=material).
+                // Variance catches the unexplained difference.
+                $varianceQty = $actualQty - $consumption->qty_planned - $scrappedQty;
                 $varianceCost = $varianceQty * $costPerUnit;
 
                 // Update consumption with actual qty and cost impact

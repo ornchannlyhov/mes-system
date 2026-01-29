@@ -2,33 +2,42 @@
 
 namespace App\Http\Controllers\Api\Inventory;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseController;
 use App\Models\Stock;
 use Illuminate\Http\Request;
 
-class StockController extends Controller
+class StockController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Stock::with(['product', 'location', 'lot']);
+        $query = Stock::with(['product', 'location', 'lot'])
+            ->applyStandardFilters(
+                $request,
+                [], // No direct text fields on stock to search
+                ['location_id', 'product_id', 'lot_id'] // Exact filters
+            );
 
-        if ($request->has('location_id')) {
-            $query->where('location_id', $request->location_id);
+        if ($request->has('search') && $request->search) {
+            $search = strtolower($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('product', function ($q) use ($search) {
+                    $q->whereRaw('LOWER(name) LIKE ?', ["%{$search}%"])
+                        ->orWhereRaw('LOWER(code) LIKE ?', ["%{$search}%"]);
+                })->orWhereHas('location', function ($q) use ($search) {
+                    $q->whereRaw('LOWER(name) LIKE ?', ["%{$search}%"]);
+                });
+            });
         }
 
-        if ($request->has('product_id')) {
-            $query->where('product_id', $request->product_id);
-        }
-
-        $stocks = $query->orderBy('id', 'desc')->get();
-
-        return response()->json(['data' => $stocks]);
+        return $this->respondWithPagination(
+            $query->paginate($request->get('per_page', 10))
+        );
     }
 
     public function show(Stock $stock)
     {
-        return response()->json([
-            'data' => $stock->load(['product', 'location', 'lot'])
-        ]);
+        return $this->success(
+            $stock->load(['product', 'location', 'lot'])
+        );
     }
 }

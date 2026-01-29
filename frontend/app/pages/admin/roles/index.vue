@@ -49,7 +49,7 @@
               </div>
             </td>
           </tr>
-          <tr v-if="roles.length === 0">
+          <tr v-if="roles.length === 0 && !loading">
             <td colspan="4">
               <UiEmptyState 
                 title="No roles found" 
@@ -58,6 +58,14 @@
               />
             </td>
           </tr>
+        </tbody>
+        <tbody v-if="loading">
+             <tr v-for="i in 5" :key="`skel-${i}`" class="animate-pulse">
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-24"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-20"></div></td>
+                <td class="px-6 py-4"><div class="h-4 bg-gray-200 rounded w-16"></div></td>
+                <td class="px-6 py-4"><div class="h-8 bg-gray-200 rounded w-24"></div></td>
+             </tr>
         </tbody>
       </table>
       </div>
@@ -71,7 +79,7 @@
 
     <!-- SlideOver -->
     <UiSlideOver v-model="showModal" :title="isEditing ? 'Edit Role Permissions' : 'Create New Role'">
-      <form @submit.prevent="save" class="space-y-6">
+      <form id="role-form" @submit.prevent="save" class="space-y-6">
         <div v-if="!isEditing" class="space-y-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700">Role Name (Key)</label>
@@ -92,7 +100,18 @@
           <label class="block text-sm font-medium text-gray-700">Permissions</label>
           
           <div v-for="(group, groupName) in groupedPermissions" :key="groupName" class="space-y-2">
-            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider border-b pb-1 mt-4">{{ groupName }}</h4>
+            <div class="flex items-center justify-between border-b pb-1 mt-4">
+                <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">{{ groupName }}</h4>
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        :checked="isGroupSelected(group)"
+                        @change="(e) => toggleGroup(group, (e.target as HTMLInputElement).checked)"
+                        class="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-4 h-4"
+                    />
+                    <span class="text-xs text-gray-500">Select All</span>
+                </label>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <label v-for="permission in group" :key="permission.id" class="flex items-start gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
                 <input 
@@ -109,14 +128,15 @@
             </div>
           </div>
         </div>
-
-        <div class="flex justify-end gap-3 mt-6 sticky bottom-0 bg-white py-4 border-t">
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
           <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">
+          <button type="submit" form="role-form" class="btn-primary" :disabled="saving">
             {{ saving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create Role') }}
           </button>
         </div>
-      </form>
+      </template>
     </UiSlideOver>
 
     <!-- Delete Confirmation -->
@@ -146,6 +166,7 @@ const saving = ref(false)
 const deleting = ref(false)
 const selectedRole = ref<Role | null>(null)
 const roleToDelete = ref<Role | null>(null)
+const loading = ref(true)
 
 // Pagination
 const currentPage = ref(1)
@@ -165,15 +186,18 @@ const form = ref({
 })
 
 async function fetchData() {
+  loading.value = true
   try {
     const [rolesRes, customPermissionsRes] = await Promise.all([
-       $api<Role[]>('/roles'),
-       $api<Permission[]>('/permissions'),
+       $api<{ data: Role[] }>('/roles'),
+       $api<{ data: Permission[] }>('/permissions'),
     ])
-    roles.value = rolesRes || []
-    allPermissions.value = customPermissionsRes || []
+    roles.value = rolesRes.data || []
+    allPermissions.value = customPermissionsRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -189,6 +213,21 @@ const groupedPermissions = computed(() => {
     })
     return groups
 })
+
+function isGroupSelected(group: Permission[]) {
+    return group.every(p => form.value.permissions.includes(p.id))
+}
+
+function toggleGroup(group: Permission[], selected: boolean) {
+    const groupIds = group.map(p => p.id)
+    if (selected) {
+        // Add all distinct IDs
+        form.value.permissions = [...new Set([...form.value.permissions, ...groupIds])]
+    } else {
+        // Remove all IDs in group
+        form.value.permissions = form.value.permissions.filter(id => !groupIds.includes(id))
+    }
+}
 
 function createRole() {
     selectedRole.value = null

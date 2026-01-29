@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class WorkCenter extends Model
 {
     use \App\Traits\ScopeByOrganization;
+    use \App\Traits\Searchable;
     use SoftDeletes;
 
     protected $fillable = [
