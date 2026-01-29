@@ -112,7 +112,7 @@ jobs:
         with:
           server: ${{ secrets.CAPROVER_SERVER }}
           app: ${{ secrets.CAPROVER_BACKEND_APP }}
-          token: ${{ secrets.CAPROVER_APP_TOKEN }}
+          token: ${{ secrets.CAPROVER_BACKEND_TOKEN }}
 
   # ============================================
   # Deploy Frontend to CapRover
@@ -136,4 +136,4 @@ jobs:
         with:
           server: ${{ secrets.CAPROVER_SERVER }}
           app: ${{ secrets.CAPROVER_FRONTEND_APP }}
-          token: ${{ secrets.CAPROVER_APP_TOKEN }}
+          token: ${{ secrets.CAPROVER_FRONTEND_TOKEN }}
