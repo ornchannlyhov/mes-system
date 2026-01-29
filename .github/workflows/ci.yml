@@ -98,21 +98,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: backend
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create deploy tarball
-        run: |
-          cd backend
-          tar -cvf deploy.tar --exclude='.git' --exclude='node_modules' --exclude='vendor' .
-
       - name: Deploy to CapRover
-        uses: caprover/deploy-from-github@v1.1.2
-        with:
-          server: ${{ secrets.CAPROVER_SERVER }}
-          app: ${{ secrets.CAPROVER_BACKEND_APP }}
-          token: ${{ secrets.CAPROVER_BACKEND_TOKEN }}
+        run: |
+          npm install -g caprover
+          caprover deploy -h ${{ secrets.CAPROVER_SERVER }} -a ${{ secrets.CAPROVER_BACKEND_APP }} -t ${{ secrets.CAPROVER_BACKEND_TOKEN }} -p ./
 
   # ============================================
   # Deploy Frontend to CapRover
@@ -122,18 +118,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [frontend-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create deploy tarball
-        run: |
-          cd frontend
-          tar -cvf deploy.tar --exclude='.git' --exclude='node_modules' --exclude='.nuxt' --exclude='.output' .
-
       - name: Deploy to CapRover
-        uses: caprover/deploy-from-github@v1.1.2
-        with:
-          server: ${{ secrets.CAPROVER_SERVER }}
-          app: ${{ secrets.CAPROVER_FRONTEND_APP }}
-          token: ${{ secrets.CAPROVER_FRONTEND_TOKEN }}
+        run: |
+          npm install -g caprover
+          caprover deploy -h ${{ secrets.CAPROVER_SERVER }} -a ${{ secrets.CAPROVER_FRONTEND_APP }} -t ${{ secrets.CAPROVER_FRONTEND_TOKEN }} -p ./
