@@ -106,26 +106,31 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Deploy to CapRover
+        env:
+          CAPROVER_SERVER: ${{ secrets.CAPROVER_SERVER }}
+          CAPROVER_APP: ${{ secrets.CAPROVER_BACKEND_APP }}
+          CAPROVER_TOKEN: ${{ secrets.CAPROVER_BACKEND_TOKEN }}
         run: |
           echo "Debug Info:"
-          echo "Server: '${{ secrets.CAPROVER_SERVER }}'"
-          echo "App Name: '${{ secrets.CAPROVER_BACKEND_APP }}'"
-          echo "Token Length: $(echo -n "${{ secrets.CAPROVER_BACKEND_TOKEN }}" | wc -c)"
+          echo "Server: $CAPROVER_SERVER"
+          echo "App Name: $CAPROVER_APP"
+          # Safe length check
+          echo "Token Length: ${#CAPROVER_TOKEN}"
           
           echo "Checking connection (with retries)..."
           for i in {1..5}; do
-            curl -v -k -I ${{ secrets.CAPROVER_SERVER }} && break || echo "Retry $i..."
+            curl -v -k -I "$CAPROVER_SERVER" && break || echo "Retry $i..."
             sleep 5
           done
           
-          # Install caprover specifically to avoid npx caching weirdness
           npm install caprover
           
           echo "Deploying..."
+          # Deploy using environment variables to avoid quoting issues
           ./node_modules/.bin/caprover deploy \
-            -h '${{ secrets.CAPROVER_SERVER }}' \
-            -a '${{ secrets.CAPROVER_BACKEND_APP }}' \
-            -t '${{ secrets.CAPROVER_BACKEND_TOKEN }}' \
+            -h "$CAPROVER_SERVER" \
+            -a "$CAPROVER_APP" \
+            -t "$CAPROVER_TOKEN" \
             -p ./
 
   # ============================================
@@ -144,22 +149,26 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Deploy to CapRover
+        env:
+          CAPROVER_SERVER: ${{ secrets.CAPROVER_SERVER }}
+          CAPROVER_APP: ${{ secrets.CAPROVER_FRONTEND_APP }}
+          CAPROVER_TOKEN: ${{ secrets.CAPROVER_FRONTEND_TOKEN }}
         run: |
           echo "Debug Info:"
-          echo "Server: '${{ secrets.CAPROVER_SERVER }}'"
-          echo "App Name: '${{ secrets.CAPROVER_FRONTEND_APP }}'"
+          echo "Server: $CAPROVER_SERVER"
+          echo "App Name: $CAPROVER_APP"
           
           echo "Checking connection (with retries)..."
           for i in {1..5}; do
-            curl -v -k -I ${{ secrets.CAPROVER_SERVER }} && break || echo "Retry $i..."
+            curl -v -k -I "$CAPROVER_SERVER" && break || echo "Retry $i..."
             sleep 5
           done
           
           npm install caprover
           
-          echo "Deploying..."
+          echo "Deploying to $CAPROVER_APP..."
           ./node_modules/.bin/caprover deploy \
-            -h '${{ secrets.CAPROVER_SERVER }}' \
-            -a '${{ secrets.CAPROVER_FRONTEND_APP }}' \
-            -t '${{ secrets.CAPROVER_FRONTEND_TOKEN }}' \
+            -h "$CAPROVER_SERVER" \
+            -a "$CAPROVER_APP" \
+            -t "$CAPROVER_TOKEN" \
             -p ./
