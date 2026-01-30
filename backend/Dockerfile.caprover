@@ -21,7 +21,10 @@ RUN apt-get update && apt-get install -y \
     intl \
     opcache
 
-# Switch back to web user
+# Fix FPM user definition error by identifying the pool user
+ENV PHP_FPM_POOL_NAME=www \
+    PHP_FPM_USER=www-data \
+    PHP_FPM_GROUP=www-data
 
 # Set working directory
 WORKDIR /var/www/html
