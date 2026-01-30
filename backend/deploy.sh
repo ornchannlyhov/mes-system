@@ -8,7 +8,9 @@ echo "🚀 Deploy Script Started"
 # 1. Run Migrations
 echo "📦 Running Migrations..."
 php artisan migrate --force
+rm -rf public/storage
 php artisan storage:link
+chmod -R 775 storage bootstrap/cache
 
 
 # 2. Clear/Cache Configs
