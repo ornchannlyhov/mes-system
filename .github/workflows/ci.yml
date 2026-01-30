@@ -114,7 +114,6 @@ jobs:
           echo "Debug Info:"
           echo "Server: $CAPROVER_SERVER"
           echo "App Name: $CAPROVER_APP"
-          # Safe length check
           echo "Token Length: ${#CAPROVER_TOKEN}"
           
           echo "Checking connection (with retries)..."
@@ -126,12 +125,11 @@ jobs:
           npm install caprover
           
           echo "Deploying..."
-          # Deploy using environment variables to avoid quoting issues
+          # Deploy using --appToken (NOT -t) and remove -p (which is password)
           ./node_modules/.bin/caprover deploy \
             -h "$CAPROVER_SERVER" \
             -a "$CAPROVER_APP" \
-            -t "$CAPROVER_TOKEN" \
-            -p ./
+            --appToken "$CAPROVER_TOKEN"
 
   # ============================================
   # Deploy Frontend to CapRover
@@ -170,5 +168,4 @@ jobs:
           ./node_modules/.bin/caprover deploy \
             -h "$CAPROVER_SERVER" \
             -a "$CAPROVER_APP" \
-            -t "$CAPROVER_TOKEN" \
-            -p ./
+            --appToken "$CAPROVER_TOKEN"
