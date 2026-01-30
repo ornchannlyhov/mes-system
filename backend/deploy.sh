@@ -24,16 +24,26 @@ php artisan view:cache
 
 # 3. Fix PHP-FPM User (Runtime Patch)
 echo "🔧 Patching PHP-FPM Configuration..."
-# Find www.conf wherever it is (silencing permission errors)
-FPM_CONF=$(find /etc /usr -name www.conf 2>/dev/null | head -n 1)
 
-if [ -n "$FPM_CONF" ]; then
-    echo "Found config at: $FPM_CONF"
-    # Append user/group if not present/active
-    echo "user = www-data" >> "$FPM_CONF"
-    echo "group = www-data" >> "$FPM_CONF"
+# Identify the correct pool directory
+POOL_DIR=""
+if [ -d "/usr/local/etc/php-fpm.d" ]; then
+    POOL_DIR="/usr/local/etc/php-fpm.d"
+elif [ -d "/etc/php/8.4/fpm/pool.d" ]; then
+    POOL_DIR="/etc/php/8.4/fpm/pool.d"
+elif [ -d "/etc/php/fpm/pool.d" ]; then
+    POOL_DIR="/etc/php/fpm/pool.d"
+fi
+
+if [ -n "$POOL_DIR" ]; then
+    echo "✅ Found FPM Pool Directory: $POOL_DIR"
+    echo "Writing force-user config..."
+    # Create valid config file to force user/group
+    printf "[www]\nuser = www-data\ngroup = www-data\n" > "$POOL_DIR/z-force-user.conf"
 else
-    echo "⚠️ Warning: www.conf not found. PHP-FPM might fail."
+    echo "⚠️ CRITICAL: Could not find PHP-FPM pool directory. FPM might fail."
+    # Fallback search as a last resort
+    find / -name "www.conf" 2>/dev/null
 fi
 
 # 4. Start the main process (PHP-FPM + Nginx)
