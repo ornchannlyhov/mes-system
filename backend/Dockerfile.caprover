@@ -22,7 +22,6 @@ RUN apt-get update && apt-get install -y \
     opcache
 
 # Switch back to web user
-USER www-data
 
 # Set working directory
 WORKDIR /var/www/html
