@@ -31,4 +31,13 @@ WORKDIR /var/www/html
 COPY --chown=www-data:www-data . .
 
 # Install PHP dependencies
+# Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Copy deploy script
+COPY --chown=www-data:www-data deploy.sh /usr/local/bin/deploy.sh
+RUN chmod +x /usr/local/bin/deploy.sh
+
+# Set Entrypoint
+ENTRYPOINT ["/usr/local/bin/deploy.sh"]
+
