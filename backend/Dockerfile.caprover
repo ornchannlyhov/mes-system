@@ -21,9 +21,11 @@ RUN apt-get update && apt-get install -y \
     intl \
     opcache
 
-# Fix FPM user definition error by identifying the pool user
-RUN echo "user = www-data" >> /etc/php/8.4/fpm/pool.d/www.conf && \
-    echo "group = www-data" >> /etc/php/8.4/fpm/pool.d/www.conf
+# Fix FPM user definition error by automatically finding and updating www.conf
+RUN find /etc/php -name www.conf -exec sed -i 's/;user = www-data/user = www-data/g' {} + \
+    && find /etc/php -name www.conf -exec sed -i 's/;group = www-data/group = www-data/g' {} + \
+    && find /etc/php -name www.conf -exec sed -i 's/user = .*/user = www-data/g' {} + \
+    && find /etc/php -name www.conf -exec sed -i 's/group = .*/group = www-data/g' {} +
 
 # Set working directory
 WORKDIR /var/www/html

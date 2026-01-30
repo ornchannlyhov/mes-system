@@ -11,6 +11,8 @@ php artisan migrate --force
 rm -rf public/storage
 php artisan storage:link
 chmod -R 775 storage bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache public/storage
+
 
 
 # 2. Clear/Cache Configs
