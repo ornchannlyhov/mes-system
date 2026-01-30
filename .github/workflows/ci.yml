@@ -107,8 +107,16 @@ jobs:
 
       - name: Deploy to CapRover
         run: |
-          npm install -g caprover
-          NODE_TLS_REJECT_UNAUTHORIZED=0 caprover deploy -h ${{ secrets.CAPROVER_SERVER }} -a ${{ secrets.CAPROVER_BACKEND_APP }} -t ${{ secrets.CAPROVER_BACKEND_TOKEN }} -p ./
+          # Use npx to avoid global install overhead
+          # We add a small connectivity check before deploying
+          echo "Checking connection to ${{ secrets.CAPROVER_SERVER }}..."
+          curl -k -I ${{ secrets.CAPROVER_SERVER }} || (echo "Server unreachable on port 443" && exit 1)
+          
+          NODE_TLS_REJECT_UNAUTHORIZED=0 npx caprover deploy \
+            -h ${{ secrets.CAPROVER_SERVER }} \
+            -a ${{ secrets.CAPROVER_BACKEND_APP }} \
+            -t ${{ secrets.CAPROVER_BACKEND_TOKEN }} \
+            -p ./
 
   # ============================================
   # Deploy Frontend to CapRover
@@ -127,5 +135,11 @@ jobs:
 
       - name: Deploy to CapRover
         run: |
-          npm install -g caprover
-          NODE_TLS_REJECT_UNAUTHORIZED=0 caprover deploy -h ${{ secrets.CAPROVER_SERVER }} -a ${{ secrets.CAPROVER_FRONTEND_APP }} -t ${{ secrets.CAPROVER_FRONTEND_TOKEN }} -p ./
+          echo "Checking connection to ${{ secrets.CAPROVER_SERVER }}..."
+          curl -k -I ${{ secrets.CAPROVER_SERVER }} || (echo "Server unreachable on port 443" && exit 1)
+          
+          NODE_TLS_REJECT_UNAUTHORIZED=0 npx caprover deploy \
+            -h ${{ secrets.CAPROVER_SERVER }} \
+            -a ${{ secrets.CAPROVER_FRONTEND_APP }} \
+            -t ${{ secrets.CAPROVER_FRONTEND_TOKEN }} \
+            -p ./
