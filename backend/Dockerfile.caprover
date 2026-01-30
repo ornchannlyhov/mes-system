@@ -31,7 +31,6 @@ WORKDIR /var/www/html
 COPY --chown=www-data:www-data . .
 
 # Install PHP dependencies
-# Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # Copy deploy script
