@@ -122,14 +122,16 @@ jobs:
             sleep 5
           done
           
-          npm install caprover
+          # Create a tarball to avoid "not in git root" interaction
+          tar -cvf deploy.tar --exclude='node_modules' --exclude='.git' .
           
           echo "Deploying..."
           # Deploy using --appToken (NOT -t) and remove -p (which is password)
           ./node_modules/.bin/caprover deploy \
             -h "$CAPROVER_SERVER" \
             -a "$CAPROVER_APP" \
-            --appToken "$CAPROVER_TOKEN"
+            --appToken "$CAPROVER_TOKEN" \
+            -t deploy.tar
 
   # ============================================
   # Deploy Frontend to CapRover
@@ -162,10 +164,12 @@ jobs:
             sleep 5
           done
           
-          npm install caprover
+          # Create a tarball to avoid "not in git root" interaction
+          tar -cvf deploy.tar --exclude='node_modules' --exclude='.git' .
           
           echo "Deploying to $CAPROVER_APP..."
           ./node_modules/.bin/caprover deploy \
             -h "$CAPROVER_SERVER" \
             -a "$CAPROVER_APP" \
-            --appToken "$CAPROVER_TOKEN"
+            --appToken "$CAPROVER_TOKEN" \
+            -t deploy.tar
