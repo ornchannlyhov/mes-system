@@ -8,6 +8,8 @@ echo "🚀 Deploy Script Started"
 # 1. Run Migrations
 echo "📦 Running Migrations..."
 php artisan migrate --force
+php artisan storage:link
+
 
 # 2. Clear/Cache Configs
 echo "🧹 Optimizing Cache..."
