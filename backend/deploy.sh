@@ -14,7 +14,6 @@ chmod -R 775 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache public/storage
 
 
-
 # 2. Clear/Cache Configs
 echo "🧹 Optimizing Cache..."
 php artisan optimize:clear
