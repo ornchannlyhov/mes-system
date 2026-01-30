@@ -126,8 +126,8 @@ jobs:
           tar -cvf deploy.tar --exclude='node_modules' --exclude='.git' .
           
           echo "Deploying..."
-          # Deploy using --appToken (NOT -t) and remove -p (which is password)
-          ./node_modules/.bin/caprover deploy \
+          # Deploy using --appToken (NOT -t) and use npx for binary resolution
+          npx caprover deploy \
             -h "$CAPROVER_SERVER" \
             -a "$CAPROVER_APP" \
             --appToken "$CAPROVER_TOKEN" \
@@ -168,7 +168,7 @@ jobs:
           tar -cvf deploy.tar --exclude='node_modules' --exclude='.git' .
           
           echo "Deploying to $CAPROVER_APP..."
-          ./node_modules/.bin/caprover deploy \
+          npx caprover deploy \
             -h "$CAPROVER_SERVER" \
             -a "$CAPROVER_APP" \
             --appToken "$CAPROVER_TOKEN" \
