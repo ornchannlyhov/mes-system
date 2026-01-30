@@ -23,7 +23,7 @@ class ManufacturingOrderController extends BaseController
 
     public function index(Request $request)
     {
-        $query = ManufacturingOrder::with(['product', 'bom', 'workOrders'])
+        $query = ManufacturingOrder::with(['product'])
             ->applyStandardFilters(
                 $request,
                 [], // Text search handled via custom logic below
