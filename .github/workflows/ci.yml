@@ -107,15 +107,22 @@ jobs:
 
       - name: Deploy to CapRover
         run: |
-          # Use npx to avoid global install overhead
-          # We add a small connectivity check before deploying
-          echo "Checking connection to ${{ secrets.CAPROVER_SERVER }}..."
-          curl -k -I ${{ secrets.CAPROVER_SERVER }} || (echo "Server unreachable on port 443" && exit 1)
+          echo "Debug Info:"
+          echo "Server: '${{ secrets.CAPROVER_SERVER }}'"
+          echo "App Name: '${{ secrets.CAPROVER_BACKEND_APP }}'"
+          echo "Token Length: $(echo -n "${{ secrets.CAPROVER_BACKEND_TOKEN }}" | wc -c)"
           
-          NODE_TLS_REJECT_UNAUTHORIZED=0 npx caprover deploy \
-            -h ${{ secrets.CAPROVER_SERVER }} \
-            -a ${{ secrets.CAPROVER_BACKEND_APP }} \
-            -t ${{ secrets.CAPROVER_BACKEND_TOKEN }} \
+          echo "Checking connection..."
+          curl -v -k -I ${{ secrets.CAPROVER_SERVER }} || (echo "Server unreachable!" && exit 1)
+          
+          # Install caprover specifically to avoid npx caching weirdness
+          npm install caprover
+          
+          echo "Deploying..."
+          ./node_modules/.bin/caprover deploy \
+            -h '${{ secrets.CAPROVER_SERVER }}' \
+            -a '${{ secrets.CAPROVER_BACKEND_APP }}' \
+            -t '${{ secrets.CAPROVER_BACKEND_TOKEN }}' \
             -p ./
 
   # ============================================
@@ -135,11 +142,14 @@ jobs:
 
       - name: Deploy to CapRover
         run: |
-          echo "Checking connection to ${{ secrets.CAPROVER_SERVER }}..."
-          curl -k -I ${{ secrets.CAPROVER_SERVER }} || (echo "Server unreachable on port 443" && exit 1)
+          echo "Debug Info:"
+          echo "Server: '${{ secrets.CAPROVER_SERVER }}'"
+          echo "App Name: '${{ secrets.CAPROVER_FRONTEND_APP }}'"
           
-          NODE_TLS_REJECT_UNAUTHORIZED=0 npx caprover deploy \
-            -h ${{ secrets.CAPROVER_SERVER }} \
-            -a ${{ secrets.CAPROVER_FRONTEND_APP }} \
-            -t ${{ secrets.CAPROVER_FRONTEND_TOKEN }} \
+          npm install caprover
+          
+          ./node_modules/.bin/caprover deploy \
+            -h '${{ secrets.CAPROVER_SERVER }}' \
+            -a '${{ secrets.CAPROVER_FRONTEND_APP }}' \
+            -t '${{ secrets.CAPROVER_FRONTEND_TOKEN }}' \
             -p ./
