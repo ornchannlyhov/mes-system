@@ -5,6 +5,16 @@ set -e
 
 echo "🚀 Deploy Script Started"
 
+# DEBUG: Check Nginx Config
+echo "🔍 Checking Nginx Configuration..."
+if [ -d "/etc/nginx" ]; then
+    echo "Files in /etc/nginx:"
+    ls -la /etc/nginx
+else
+    echo "❌ /etc/nginx directory does not exist!"
+fi
+
+
 # 1. Run Migrations
 echo "📦 Running Migrations..."
 php artisan migrate --force
