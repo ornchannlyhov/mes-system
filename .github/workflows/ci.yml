@@ -112,8 +112,11 @@ jobs:
           echo "App Name: '${{ secrets.CAPROVER_BACKEND_APP }}'"
           echo "Token Length: $(echo -n "${{ secrets.CAPROVER_BACKEND_TOKEN }}" | wc -c)"
           
-          echo "Checking connection..."
-          curl -v -k -I ${{ secrets.CAPROVER_SERVER }} || (echo "Server unreachable!" && exit 1)
+          echo "Checking connection (with retries)..."
+          for i in {1..5}; do
+            curl -v -k -I ${{ secrets.CAPROVER_SERVER }} && break || echo "Retry $i..."
+            sleep 5
+          done
           
           # Install caprover specifically to avoid npx caching weirdness
           npm install caprover
@@ -146,8 +149,15 @@ jobs:
           echo "Server: '${{ secrets.CAPROVER_SERVER }}'"
           echo "App Name: '${{ secrets.CAPROVER_FRONTEND_APP }}'"
           
+          echo "Checking connection (with retries)..."
+          for i in {1..5}; do
+            curl -v -k -I ${{ secrets.CAPROVER_SERVER }} && break || echo "Retry $i..."
+            sleep 5
+          done
+          
           npm install caprover
           
+          echo "Deploying..."
           ./node_modules/.bin/caprover deploy \
             -h '${{ secrets.CAPROVER_SERVER }}' \
             -a '${{ secrets.CAPROVER_FRONTEND_APP }}' \
