@@ -38,6 +38,10 @@ class ExecutionTest extends TestCase
         $org = \App\Models\Organization::create(['name' => 'Test Org']);
         $this->user = User::factory()->create(['organization_id' => $org->id]);
         $this->organizationId = $org->id;
+
+        // Ensure the user is authenticated so ScopeByOrganization auto-assigns the organization_id to fixtures
+        $this->actingAs($this->user);
+
         $token = $this->user->createToken('test')->plainTextToken;
         $this->headers['Authorization'] = 'Bearer ' . $token;
 
@@ -306,6 +310,7 @@ class ExecutionTest extends TestCase
             'bom_id' => $this->bom->id,
             'quantity' => 5,
             'location_id' => $this->location->id,
+            'component_location_id' => $this->location->id,
         ];
 
         $response = $this->withHeaders($this->headers)->postJson('/api/unbuild-orders', $unbuildPayload);

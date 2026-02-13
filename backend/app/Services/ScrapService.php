@@ -31,7 +31,7 @@ class ScrapService
                     'lot_id' => $data['lot_id'] ?? null,
                     'quantity' => $data['quantity'],
                     'type' => 'subtract',
-                    'reason' => 'scrap_record',
+                    'reason' => 'damage',
                     'reference' => 'Scrap #' . $scrap->id,
                     'notes' => $data['reason'] ?? 'Material scrapped',
                 ]);
@@ -88,7 +88,7 @@ class ScrapService
                             'lot_id' => $scrap->lot_id,
                             'quantity' => $delta,
                             'type' => 'subtract',
-                            'reason' => 'scrap_update',
+                            'reason' => 'correction',
                             'reference' => 'Scrap #' . $scrap->id,
                             'notes' => 'Quantity increased'
                         ]);
@@ -145,7 +145,7 @@ class ScrapService
                         'lot_id' => $scrap->lot_id,
                         'quantity' => $scrap->quantity,
                         'type' => 'add', // Revert subtract
-                        'reason' => 'scrap_deletion',
+                        'reason' => 'correction',
                         'reference' => 'Scrap #' . $scrap->id,
                         'notes' => 'Reverted after deletion'
                     ]);

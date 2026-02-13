@@ -40,7 +40,7 @@ class UnbuildOrderService
                 'lot_id' => $unbuildOrder->lot_id ?? null,
                 'quantity' => $unbuildOrder->quantity,
                 'type' => 'subtract',
-                'reason' => 'unbuild_order_deduction',
+                'reason' => 'manufacturing_production',
                 'reference' => $unbuildOrder->name,
                 'notes' => "Deducted finished good for unbuild " . $unbuildOrder->name
             ]);
@@ -57,7 +57,7 @@ class UnbuildOrderService
                     'product_id' => $line->product_id,
                     'quantity' => $componentQty,
                     'type' => 'add',
-                    'reason' => 'unbuild_order_return',
+                    'reason' => 'manufacturing_consumption',
                     'reference' => $unbuildOrder->name,
                     'notes' => "Returned components from unbuild " . $unbuildOrder->name
                 ]);
@@ -81,7 +81,7 @@ class UnbuildOrderService
                     'lot_id' => $unbuildOrder->lot_id ?? null,
                     'quantity' => $unbuildOrder->quantity,
                     'type' => 'add', // Revert subtract
-                    'reason' => 'unbuild_order_reversal',
+                    'reason' => 'manufacturing_production',
                     'reference' => $unbuildOrder->name,
                     'notes' => "Reverted finished good addition after unbuild deletion"
                 ]);
@@ -100,7 +100,7 @@ class UnbuildOrderService
                         'product_id' => $line->product_id,
                         'quantity' => $componentQty,
                         'type' => 'subtract', // Revert add
-                        'reason' => 'unbuild_order_reversal',
+                        'reason' => 'manufacturing_consumption',
                         'reference' => $unbuildOrder->name,
                         'notes' => "Removed returned components after unbuild deletion"
                     ]);
