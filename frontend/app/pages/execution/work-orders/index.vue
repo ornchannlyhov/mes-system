@@ -329,29 +329,73 @@
 </template>
 
 <script setup lang="ts">
-import { useServerDataTable } from '~/composables/useServerDataTable'
+import { useExecutionStore } from '~/stores/execution'
 import type { WorkOrder } from '~/types/models'
+
+const executionStore = useExecutionStore()
 
 const { $api } = useApi()
 const toast = useToast()
 const { getImageUrl } = useUtils()
 
-// Data Table
-const { 
-  items: workOrders, 
-  total, 
-  loading, 
-  counts, 
-  page, 
-  perPage, 
-  search, 
-  filters, 
-  refresh 
-} = useServerDataTable<WorkOrder>({
-  url: 'work-orders',
-  perPage: 12,
-  initialFilters: { status: '' }
+// Data Table (Client-side)
+const loading = ref(true)
+const search = ref('')
+const filters = ref({ status: '' })
+const page = ref(1)
+const perPage = ref(12)
+
+const allWorkOrders = computed(() => executionStore.workOrders as WorkOrder[])
+
+// Counts
+const counts = computed<Record<string, number>>(() => {
+  const list = allWorkOrders.value
+  return {
+    all: list.length,
+    ready: list.filter(w => w.status === 'ready').length,
+    in_progress: list.filter(w => w.status === 'in_progress').length,
+    paused: list.filter(w => w.status === 'paused').length,
+    pending: list.filter(w => w.status === 'pending').length,
+    done: list.filter(w => w.status === 'done').length,
+  }
 })
+
+const filteredItems = computed(() => {
+  let result = allWorkOrders.value
+  
+  if (filters.value.status) {
+    result = result.filter(w => w.status === filters.value.status)
+  }
+
+  if (search.value) {
+    const q = search.value.toLowerCase()
+    result = result.filter(w => 
+      w.manufacturing_order?.name?.toLowerCase().includes(q) ||
+      w.work_center?.name?.toLowerCase().includes(q)
+    )
+  }
+
+  // Sort by id desc
+  return result.sort((a,b) => b.id - a.id)
+})
+
+const total = computed(() => filteredItems.value.length)
+
+const workOrders = computed(() => {
+    const start = (page.value - 1) * perPage.value
+    return filteredItems.value.slice(start, start + perPage.value)
+})
+
+async function refresh(force = false) {
+    loading.value = true
+    try {
+        await executionStore.fetchWorkOrders(force)
+    } finally {
+        loading.value = false
+    }
+}
+
+onMounted(() => refresh())
 
 const now = useNow()
 
@@ -411,7 +455,7 @@ async function handleAction(wo: WorkOrder, action: () => Promise<void>, successM
     try {
         await action()
         toast.success(successMsg)
-        refresh()
+        refresh(true)
     } catch (e: any) {
         toast.error(e.data?.message || 'Action failed')
     } finally {
@@ -441,7 +485,7 @@ async function confirmFinish() {
     })
     toast.success('Work order completed')
     showFinishModal.value = false
-    refresh()
+    refresh(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to finish')
   } finally {
@@ -474,7 +518,7 @@ async function submitQa() {
         })
         toast.success(`QA Marked as ${qaForm.value.status.toUpperCase()}`)
         showQaModal.value = false
-        refresh()
+        refresh(true)
     } catch(e) {
         toast.error('Failed to update QA status')
     } finally {

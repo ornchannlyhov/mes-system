@@ -333,9 +333,9 @@ async function fetchLots(page = 1) {
       masterStore.fetchProducts(),
     ])
     lots.value = lotRes.data || []
-    totalLots.value = lotRes.total || 0
-    lotPageSize.value = lotRes.per_page || 10
-    lotCurrentPage.value = lotRes.current_page || 1
+    totalLots.value = lotRes.meta?.counts?.total || lotRes.counts?.total || lotRes.meta?.total || lotRes.total || 0
+    lotPageSize.value = lotRes.meta?.per_page || lotRes.per_page || 10
+    lotCurrentPage.value = lotRes.meta?.current_page || lotRes.current_page || 1
   } catch (e) {
     toast.error('Failed to fetch lots')
   } finally {
@@ -405,9 +405,9 @@ async function fetchSerials(page = 1) {
   try {
     const res = await $api<PaginatedResponse<Serial>>(`/serials?page=${page}`)
     serials.value = res.data || []
-    totalSerials.value = res.total
-    serialPageSize.value = res.per_page
-    serialCurrentPage.value = res.current_page
+    totalSerials.value = res.meta?.total || res.total || 0
+    serialPageSize.value = res.meta?.per_page || res.per_page || 10
+    serialCurrentPage.value = res.meta?.current_page || res.current_page || 1
   } catch (e) {
     toast.error('Failed to fetch serials')
   } finally {

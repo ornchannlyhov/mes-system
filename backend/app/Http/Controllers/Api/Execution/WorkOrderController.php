@@ -21,7 +21,32 @@ class WorkOrderController extends BaseController
 
     public function index(Request $request)
     {
-        $query = WorkOrder::with(['manufacturingOrder.product', 'workCenter', 'assignedUser', 'operation', 'qaUser'])
+        $query = WorkOrder::select([
+            'id',
+            'status',
+            'qa_status',
+            'manufacturing_order_id',
+            'work_center_id',
+            'operation_id',
+            'assigned_to',
+            'qa_by',
+            'qa_at',
+            'qa_comments',
+            'duration_expected',
+            'duration_actual',
+            'started_at',
+            'finished_at',
+            'created_at',
+            'updated_at'
+        ])
+            ->with([
+                'manufacturingOrder:id,name,product_id',
+                'manufacturingOrder.product:id,name,code',
+                'workCenter:id,name,code',
+                'assignedUser:id,name',
+                'operation:id,name,needs_quality_check,instruction_file_url',
+                'qaUser:id,name'
+            ])
             ->applyStandardFilters(
                 $request,
                 [], // Text search handled via relations below

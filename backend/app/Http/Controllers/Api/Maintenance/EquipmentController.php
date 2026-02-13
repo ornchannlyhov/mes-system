@@ -14,7 +14,7 @@ class EquipmentController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Equipment::with('workCenter')
+        $query = Equipment::with('workCenter:id,name,code')
             ->applyStandardFilters(
                 $request,
                 ['name', 'code', 'notes'], // Searchable

@@ -12,7 +12,8 @@ class SerialController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Serial::with(['product', 'lot', 'manufacturingOrder'])
+        $query = Serial::select(['id', 'name', 'status', 'product_id', 'lot_id', 'manufacturing_order_id', 'created_at'])
+            ->with(['product:id,name,code', 'lot:id,name', 'manufacturingOrder:id,name'])
             ->applyStandardFilters(
                 $request,
                 ['name'], // Searchable

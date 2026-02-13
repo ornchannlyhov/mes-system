@@ -187,6 +187,15 @@ export interface PaginatedResponse<T> {
     last_page: number
     per_page: number
     total: number
+    counts?: Record<string, any>
+    meta?: {
+        current_page: number
+        last_page: number
+        per_page: number
+        total: number
+        counts?: Record<string, any>
+        [key: string]: any
+    }
 }
 
 // Cost Entry

@@ -361,36 +361,79 @@
 </template>
 
 <script setup lang="ts">
-import { useServerDataTable } from '~/composables/useServerDataTable'
+import { useExecutionStore } from '~/stores/execution'
 import type { ManufacturingOrder, Product, Bom } from '~/types/models'
 
 const { $api } = useApi()
 const toast = useToast()
 const config = useRuntimeConfig()
 const masterStore = useMasterStore()
+const executionStore = useExecutionStore()
 const { getImageUrl, formatDate } = useUtils()
 
 // View State
 const viewMode = ref<'table' | 'calendar'>('table')
 
-// Data Table (Server-side)
-const table = useServerDataTable<ManufacturingOrder>({
-  url: 'manufacturing-orders',
-  initialFilters: { status: '' },
-  perPage: 10
+// Data Table (Client-side with Store)
+const loading = ref(true)
+const search = ref('')
+const filters = ref({ status: '' })
+const page = ref(1)
+const perPage = ref(10)
+
+const mos = computed(() => executionStore.manufacturingOrders as ManufacturingOrder[])
+
+// Client-side Counts
+const counts = computed<Record<string, number>>(() => {
+  const list = mos.value
+  return {
+    all: list.length,
+    draft: list.filter(m => m.status === 'draft').length,
+    confirmed: list.filter(m => m.status === 'confirmed').length,
+    in_progress: list.filter(m => m.status === 'in_progress').length,
+    done: list.filter(m => m.status === 'done').length,
+    scheduled: list.filter(m => m.status === 'scheduled').length,
+  }
 })
 
-const { 
-  items: tableOrders, 
-  total, 
-  loading, 
-  counts, 
-  page, 
-  perPage, 
-  search, 
-  filters, 
-  refresh: refreshTable 
-} = table
+// Filtered & Sorted Items
+const filteredItems = computed(() => {
+  let result = mos.value
+
+  // Status Filter
+  if (filters.value.status) {
+    result = result.filter(m => m.status === filters.value.status)
+  }
+
+  // Search Filter
+  if (search.value) {
+    const q = search.value.toLowerCase()
+    result = result.filter(m => 
+      m.name?.toLowerCase().includes(q) || 
+      m.product?.name?.toLowerCase().includes(q) ||
+      m.product?.code?.toLowerCase().includes(q)
+    )
+  }
+
+  // Sort by created_at desc
+  return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+})
+
+const total = computed(() => filteredItems.value.length)
+
+const tableOrders = computed(() => {
+  const start = (page.value - 1) * perPage.value
+  return filteredItems.value.slice(start, start + perPage.value)
+})
+
+async function refreshTable(force = false) {
+  loading.value = true
+  try {
+    await executionStore.fetchManufacturingOrders(force)
+  } finally {
+    loading.value = false
+  }
+}
 
 // Calendar State
 const calendarOrders = ref<ManufacturingOrder[]>([])
@@ -476,6 +519,7 @@ const finishedProducts = computed(() => products.value.filter(p => p.type === 'f
 onMounted(async () => {
     await Promise.all([
         masterStore.fetchProducts(),
+        refreshTable(),
          $api<{ data: Bom[] }>('/boms').then(r => boms.value = r.data || []).catch(() => {})
     ])
     
@@ -549,7 +593,7 @@ async function save() {
       toast.success('Order created')
     }
     showModal.value = false
-    refreshTable()
+    refreshTable(true)
     if (viewMode.value === 'calendar') fetchCalendarData()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save order')
@@ -563,7 +607,7 @@ async function handleAction(mo: ManufacturingOrder, action: () => Promise<void>,
     try {
         await action()
         toast.success(successMsg)
-        refreshTable()
+        refreshTable(true)
         if (viewMode.value === 'calendar') fetchCalendarData()
     } catch (e: any) {
         toast.error(e.data?.message || 'Action failed')
@@ -660,7 +704,7 @@ async function onDrop(event: DragEvent, day: any) {
     })
     toast.success('Order rescheduled')
     fetchCalendarData()
-    refreshTable() // Update list too
+    refreshTable(true) // Update list too
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to reschedule order')
   }

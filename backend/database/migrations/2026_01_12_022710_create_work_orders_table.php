@@ -32,6 +32,11 @@ return new class extends Migration {
 
             $table->timestamps();
             $table->softDeletes();
+
+            // Performance Indexes
+            $table->index('status');
+            $table->index('qa_status');
+            $table->index('work_center_id');
         });
     }
 

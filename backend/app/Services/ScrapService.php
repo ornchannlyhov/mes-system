@@ -31,8 +31,9 @@ class ScrapService
                     'lot_id' => $data['lot_id'] ?? null,
                     'quantity' => $data['quantity'],
                     'type' => 'subtract',
-                    // Note: We don't pass manufacturing_order_id here to avoid StockService creating a duplicate cost entry.
-                    // We handle cost entry explicitly below.
+                    'reason' => 'scrap_record',
+                    'reference' => 'Scrap #' . $scrap->id,
+                    'notes' => $data['reason'] ?? 'Material scrapped',
                 ]);
             }
 
@@ -87,6 +88,9 @@ class ScrapService
                             'lot_id' => $scrap->lot_id,
                             'quantity' => $delta,
                             'type' => 'subtract',
+                            'reason' => 'scrap_update',
+                            'reference' => 'Scrap #' . $scrap->id,
+                            'notes' => 'Quantity increased'
                         ]);
                     } else {
                         $this->stockService->adjust($location, [
@@ -94,6 +98,9 @@ class ScrapService
                             'lot_id' => $scrap->lot_id,
                             'quantity' => abs($delta),
                             'type' => 'add',
+                            'reason' => 'scrap_update',
+                            'reference' => 'Scrap #' . $scrap->id,
+                            'notes' => 'Quantity decreased'
                         ]);
                     }
                 }
@@ -138,6 +145,9 @@ class ScrapService
                         'lot_id' => $scrap->lot_id,
                         'quantity' => $scrap->quantity,
                         'type' => 'add', // Revert subtract
+                        'reason' => 'scrap_deletion',
+                        'reference' => 'Scrap #' . $scrap->id,
+                        'notes' => 'Reverted after deletion'
                     ]);
                 }
             }

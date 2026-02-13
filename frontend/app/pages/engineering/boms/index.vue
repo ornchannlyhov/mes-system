@@ -339,22 +339,66 @@ const config = useRuntimeConfig()
 const masterStore = useMasterStore()
 const { getImageUrl } = useUtils()
 
-// Server Data Table
-const { 
-  items: boms, 
-  total, 
-  loading, 
-  counts, 
-  page, 
-  perPage, 
-  search, 
-  filters, 
-  refresh 
-} = useServerDataTable<Bom>({
-  url: 'boms',
-  perPage: 10,
-  initialFilters: { type: '' }
+// Client-side Data Table
+const search = ref('')
+const filters = ref({ type: '' })
+const page = ref(1)
+const perPage = ref(10)
+const loading = ref(true)
+
+const allBoms = computed(() => masterStore.boms as Bom[])
+
+const counts = computed<Record<string, number>>(() => {
+  const list = allBoms.value
+  return {
+    all: list.length,
+    normal: list.filter(b => b.type === 'normal').length,
+    phantom: list.filter(b => b.type === 'phantom').length,
+  }
 })
+
+const filteredItems = computed(() => {
+  let result = allBoms.value
+
+  // Type Filter
+  if (filters.value.type) {
+    result = result.filter(b => b.type === filters.value.type)
+  }
+
+  // Search Filter
+  if (search.value) {
+    const q = search.value.toLowerCase()
+    result = result.filter(b => 
+      b.id.toString().includes(q) ||
+      b.product?.name?.toLowerCase().includes(q) ||
+      b.product?.code?.toLowerCase().includes(q)
+    )
+  }
+
+  return result
+})
+
+const total = computed(() => filteredItems.value.length)
+
+const boms = computed(() => {
+  const start = (page.value - 1) * perPage.value
+  return filteredItems.value.slice(start, start + perPage.value)
+})
+
+async function refresh(force = false) {
+  loading.value = true
+  try {
+     await Promise.all([
+        masterStore.fetchBoms(force),
+        masterStore.fetchProducts(force),
+        masterStore.fetchWorkCenters(force),
+     ])
+  } catch (e) {
+     toast.error('Failed to fetch data')
+  } finally {
+     loading.value = false
+  }
+}
 
 const products = computed(() => masterStore.products)
 const finishedGoods = computed(() => products.value.filter(p => p.type === 'finished'))
@@ -383,18 +427,7 @@ const form = ref({
 })
 
 
-async function fetchData() {
-  try {
-     await Promise.all([
-        masterStore.fetchProducts(),
-        masterStore.fetchWorkCenters(),
-     ])
-  } catch (e) {
-     console.error(e)
-  }
-}
 
-// Watchers handled by composable
 
 function addComponent() {
   form.value.lines.push({
@@ -508,7 +541,7 @@ async function save() {
       toast.success('BOM created successfully')
     }
     showModal.value = false
-    refresh()
+    refresh(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save BOM')
   } finally {
@@ -528,15 +561,13 @@ async function deleteBom() {
     await $api(`/boms/${deletingItem.value.id}`, { method: 'DELETE' })
     toast.success('BOM deleted successfully')
     showDeleteModal.value = false
-    refresh()
+    refresh(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete BOM')
   } finally {
     deleting.value = false
   }
 }
-
-
 
 // File upload logic
 async function handleFileUpload(event: Event, index: number) {
@@ -580,7 +611,7 @@ const route = useRoute()
 
 onMounted(async () => {
     // initial fetch of master data
-    await fetchData()
+    await refresh()
     if (route.query.id) {
         const id = Number(route.query.id)
         if (!isNaN(id)) {
@@ -588,7 +619,6 @@ onMounted(async () => {
             showDetailModal.value = true
         }
     }
-    }
-)
+})
 
 </script>

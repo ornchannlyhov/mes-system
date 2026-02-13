@@ -3,8 +3,11 @@
     <div class="animate-fade-in">
       <!-- Header -->
       <div class="text-center mb-10">
-        <div class="w-16 h-16 bg-primary-50 active:scale-95 transition-transform duration-300 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <Icon name="heroicons:cube" class="w-8 h-8 text-primary-600" />
+        <div class="flex justify-center mb-6">
+          <img v-show="!logoError" :src="logoSrc" alt="CamSME Logo" class="h-12 w-auto object-contain" @error="logoError = true" />
+          <div v-if="logoError" class="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center">
+            <Icon name="heroicons:cube" class="w-8 h-8 text-primary-600" />
+          </div>
         </div>
         <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Welcome back</h1>
         <p class="text-gray-500 mt-2">Sign in to your account to continue</p>
@@ -92,6 +95,8 @@ const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
+const logoSrc = '/images/logo.png'
+const logoError = ref(false)
 
 // Redirect if already logged in
 if (isAuthenticated.value) {

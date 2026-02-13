@@ -18,6 +18,9 @@ return new class extends Migration {
             $table->timestamps();
 
             $table->unique(['product_id', 'location_id', 'lot_id']);
+
+            // Performance Index
+            $table->index(['location_id', 'product_id']);
         });
     }
 

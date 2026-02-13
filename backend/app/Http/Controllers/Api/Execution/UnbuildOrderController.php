@@ -13,9 +13,15 @@ use App\Http\Requests\Execution\StoreUnbuildOrderRequest;
 
 class UnbuildOrderController extends BaseController
 {
+    public function __construct(
+        protected \App\Services\UnbuildOrderService $unbuildOrderService
+    ) {
+    }
+
     public function index(Request $request)
     {
-        $query = UnbuildOrder::with(['product', 'bom'])
+        $query = UnbuildOrder::select(['id', 'name', 'status', 'product_id', 'bom_id', 'manufacturing_order_id', 'quantity', 'reason', 'created_at'])
+            ->with(['product:id,name,code', 'bom:id'])
             ->applyStandardFilters(
                 $request,
                 ['name', 'reason'], // Searchable
@@ -38,7 +44,7 @@ class UnbuildOrderController extends BaseController
         $validated['created_by'] = $request->user()->id;
         $validated['name'] = 'UO-' . date('YmdHis'); // Simple generation
 
-        $unbuildOrder = UnbuildOrder::create($validated);
+        $unbuildOrder = $this->unbuildOrderService->create($validated);
 
         return $this->success($unbuildOrder, [], 201);
     }
@@ -69,7 +75,7 @@ class UnbuildOrderController extends BaseController
     {
         $this->authorize('delete', $unbuildOrder);
 
-        $unbuildOrder->delete();
+        $this->unbuildOrderService->delete($unbuildOrder);
         return $this->success(null, [], 204);
     }
 }

@@ -3,8 +3,11 @@
     <div class="animate-fade-in">
       <!-- Header -->
       <div class="text-center mb-10">
-        <div class="w-16 h-16 bg-primary-50 active:scale-95 transition-transform duration-300 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <Icon name="heroicons:key" class="w-8 h-8 text-primary-600" />
+        <div class="flex justify-center mb-6">
+          <img v-show="!logoError" :src="logoSrc" alt="CamSME Logo" class="h-12 w-auto object-contain" @error="logoError = true" />
+          <div v-if="logoError" class="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center">
+            <Icon name="heroicons:key" class="w-8 h-8 text-primary-600" />
+          </div>
         </div>
         <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Forgot password?</h1>
         <p class="text-gray-500 mt-2">No worries, we'll send you reset instructions.</p>
@@ -66,6 +69,8 @@ const router = useRouter()
 
 const email = ref('')
 const loading = ref(false)
+const logoSrc = '/images/logo.png'
+const logoError = ref(false)
 
 async function handleSendOtp() {
   loading.value = true

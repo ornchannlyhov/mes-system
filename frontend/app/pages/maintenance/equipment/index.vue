@@ -234,11 +234,14 @@
 <script setup lang="ts">
 import type { Equipment } from '~/types/models'
 
+import { useMasterStore } from '~/stores/master'
+
 const { $api } = useApi()
 const toast = useToast()
 const { formatDate } = useUtils()
+const masterStore = useMasterStore()
 
-const equipment = ref<Equipment[]>([])
+const equipment = computed(() => masterStore.equipment as Equipment[])
 const showModal = ref(false)
 const editing = ref<Equipment | null>(null)
 const currentPage = ref(1)
@@ -277,11 +280,10 @@ function statusIconClass(status: string) {
   }[status] || 'bg-gray-100 text-gray-600'
 }
 
-async function fetchEquipment() {
+async function fetchEquipment(force = false) {
   loading.value = true
   try {
-    const res = await $api<{ data: Equipment[] }>('/equipment')
-    equipment.value = res.data || []
+    await masterStore.fetchEquipment(force)
   } catch (e) {
     toast.error('Failed to fetch equipment')
   } finally {
@@ -311,7 +313,7 @@ async function save() {
       toast.success('Equipment created successfully')
     }
     showModal.value = false
-    await fetchEquipment()
+    await fetchEquipment(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save equipment')
   } finally {
@@ -340,7 +342,7 @@ async function reportBroken() {
     })
     toast.success('Equipment reported as broken')
     showReportModal.value = false
-    await fetchEquipment()
+    await fetchEquipment(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to report equipment')
   } finally {
@@ -392,7 +394,7 @@ async function scheduleMaintenance() {
     
     toast.success(isToday ? 'Maintenance started' : 'Maintenance schedule created')
     showScheduleModal.value = false
-    await fetchEquipment()
+    await fetchEquipment(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to create schedule')
   } finally {
@@ -470,7 +472,7 @@ async function markMaintenanceDone(eq: Equipment) {
     }
 
     toast.success('Maintenance completed')
-    await fetchEquipment()
+    await fetchEquipment(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to update equipment')
   }
@@ -492,7 +494,7 @@ async function handleDelete() {
     await $api(`/equipment/${deletingItem.value.id}`, { method: 'DELETE' })
     toast.success('Equipment deleted')
     showDeleteModal.value = false
-    await fetchEquipment()
+    await fetchEquipment(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete equipment')
   } finally {
@@ -503,5 +505,5 @@ async function handleDelete() {
 
 
 
-onMounted(fetchEquipment)
+onMounted(() => fetchEquipment())
 </script>

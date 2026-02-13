@@ -13,15 +13,32 @@ class RoleController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Role::with('permissions')
-            ->applyStandardFilters(
-                $request,
-                ['name', 'label'], // Searchable
-                [] // Filterable
-            );
+        $organizationId = \Auth::user()->organization_id;
 
-        // Standard index usually returns pagination, but Role lists might be small. 
-        // Typically standardized to pagination in this refactor.
+        $query = Role::select(['id', 'name', 'label', 'organization_id'])
+            ->with(['permissions:id,label']);
+
+        if ($organizationId) {
+            // Get names of roles specifically defined for this organization
+            $localNames = Role::where('organization_id', $organizationId)->pluck('name');
+
+            if ($localNames->isNotEmpty()) {
+                $query->where(function ($q) use ($organizationId, $localNames) {
+                    $q->where('organization_id', $organizationId)
+                        ->orWhere(function ($q2) use ($localNames) {
+                            $q2->whereNull('organization_id')
+                                ->whereNotIn('name', $localNames);
+                        });
+                });
+            }
+        }
+
+        $query->applyStandardFilters(
+            $request,
+            ['name', 'label'], // Searchable
+            [] // Filterable
+        );
+
         return $this->respondWithPagination(
             $query->paginate($request->get('per_page', 100))
         );

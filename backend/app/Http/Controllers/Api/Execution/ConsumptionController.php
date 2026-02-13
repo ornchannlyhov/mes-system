@@ -22,7 +22,8 @@ class ConsumptionController extends BaseController
     }
     public function index(Request $request)
     {
-        $query = Consumption::with(['product', 'manufacturingOrder'])
+        $query = Consumption::select(['id', 'manufacturing_order_id', 'product_id', 'qty_planned', 'qty_consumed', 'cost_impact', 'created_at'])
+            ->with(['product:id,name,code,uom,cost,image_url', 'manufacturingOrder:id,name'])
             ->applyStandardFilters(
                 $request,
                 [], // Searchable fields in valid text columns (none explicit here yet)
@@ -43,9 +44,6 @@ class ConsumptionController extends BaseController
             });
         }
 
-        // Counts grouped by manufacturing_order_id doesn't make much sense here, 
-        // maybe no specific counts needed unless we group by variance type (over/under).
-        // For now, standard pagination.
 
         return $this->respondWithPagination(
             $query->paginate($request->get('per_page', 20)) // Keep default 20 relevant to existing logic
@@ -124,12 +122,10 @@ class ConsumptionController extends BaseController
                 $delta = $validated['qty_consumed'] - $oldQty;
 
                 // If location was used for this consumption, update it
-                $locationId = $consumption->location_id;
                 // If no location saved, we might have an issue tracing where it came from.
-                // Assuming consumption has location_id if it was consumed from stock.
-
-                if ($locationId) {
-                    $location = Location::find($locationId);
+                // Stock is adjusted only if a specific location was tracked for this consumption.
+                if ($consumption->location_id) {
+                    $location = Location::find($consumption->location_id);
                     if ($location) {
                         if ($delta > 0) {
                             $this->stockService->adjust($location, [
@@ -224,10 +220,31 @@ class ConsumptionController extends BaseController
     {
         $this->authorize('delete', $consumption);
 
-        // Delete associated CostEntry
-        CostEntry::where('consumption_id', $consumption->id)->delete();
+        DB::transaction(function () use ($consumption) {
+            // 1. Revert Stock if MO is done
+            $mo = $consumption->manufacturingOrder;
+            if ($mo && $mo->status === 'done' && $consumption->qty_consumed > 0 && $consumption->location_id) {
+                $location = Location::find($consumption->location_id);
+                if ($location) {
+                    $this->stockService->adjust($location, [
+                        'product_id' => $consumption->product_id,
+                        'quantity' => $consumption->qty_consumed,
+                        'type' => 'add', // Return consumed materials
+                        'lot_id' => $consumption->lot_id,
+                        'reason' => 'consumption_reversal',
+                        'reference' => $mo->name,
+                        'notes' => 'Stock returned after consumption sequence was deleted'
+                    ]);
+                }
+            }
 
-        $consumption->delete();
+            // 2. Delete associated CostEntries
+            CostEntry::where('consumption_id', $consumption->id)->delete();
+
+            // 3. Delete Consumption
+            $consumption->delete();
+        });
+
         return $this->success(null, [], 204);
     }
 }

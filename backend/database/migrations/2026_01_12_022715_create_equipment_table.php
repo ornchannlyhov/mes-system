@@ -20,6 +20,9 @@ return new class extends Migration {
             $table->text('notes')->nullable();
             $table->timestamps();
             $table->softDeletes();
+
+            // Performance Index
+            $table->index('status');
         });
     }
 

@@ -279,6 +279,7 @@ interface StockAdjustment {
 const { $api } = useApi()
 const toast = useToast()
 const masterStore = useMasterStore()
+const inventoryStore = useInventoryStore()
 const { formatDate, getImageUrl } = useUtils()
 
 function isFileUrl(ref: string) {
@@ -298,7 +299,9 @@ function getFileUrl(ref: string) {
   return ref
 }
 
-const adjustments = ref<StockAdjustment[]>([])
+import { useInventoryStore } from '~/stores/inventory'
+
+const adjustments = computed(() => inventoryStore.adjustments as StockAdjustment[])
 const products = computed(() => masterStore.products)
 const locations = computed(() => masterStore.locations)
 const lots = ref<Lot[]>([])
@@ -447,15 +450,14 @@ async function fetchLots() {
   }
 }
 
-async function fetchData() {
+async function fetchData(force = false) {
   loading.value = true
   try {
-    const [adjRes] = await Promise.all([
-      $api<{ data: StockAdjustment[] }>('/stock-adjustments'),
+    await Promise.all([
+      inventoryStore.fetchAdjustments(force),
       masterStore.fetchProducts(),
       masterStore.fetchLocations(),
     ])
-    adjustments.value = adjRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
   } finally {
@@ -535,7 +537,7 @@ async function save() {
     }
     showModal.value = false
     uploadedFile.value = null
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save adjustment')
   } finally {
@@ -555,7 +557,7 @@ async function handleDelete() {
     await $api(`/stock-adjustments/${deletingItem.value.id}`, { method: 'DELETE' })
     toast.success('Adjustment deleted')
     showDeleteModal.value = false
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete adjustment')
   } finally {
@@ -564,5 +566,5 @@ async function handleDelete() {
   }
 }
 
-onMounted(fetchData)
+onMounted(() => fetchData())
 </script>

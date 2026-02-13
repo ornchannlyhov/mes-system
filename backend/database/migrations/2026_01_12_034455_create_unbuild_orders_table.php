@@ -28,6 +28,9 @@ return new class extends Migration {
 
             $table->text('reason')->nullable();
 
+            $table->foreignId('location_id')->nullable()->constrained('locations');
+            $table->foreignId('component_location_id')->nullable()->constrained('locations');
+
             $table->foreignId('created_by')->constrained('users');
             $table->timestamps();
         });

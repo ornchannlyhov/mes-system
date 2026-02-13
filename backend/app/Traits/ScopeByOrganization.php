@@ -16,9 +16,15 @@ trait ScopeByOrganization
         // Add Global Scope to filter by organization_id
         static::addGlobalScope('organization', function (Builder $builder) {
             if (Auth::check()) {
-                $builder->where(function ($query) {
-                    $query->where($query->getModel()->qualifyColumn('organization_id'), Auth::user()->organization_id)
-                        ->orWhereNull($query->getModel()->qualifyColumn('organization_id'));
+                $model = $builder->getModel();
+                $allowGlobal = method_exists($model, 'allowGlobalRecords') && $model->allowGlobalRecords();
+
+                $builder->where(function ($query) use ($allowGlobal) {
+                    $query->where($query->getModel()->qualifyColumn('organization_id'), Auth::user()->organization_id);
+
+                    if ($allowGlobal) {
+                        $query->orWhereNull($query->getModel()->qualifyColumn('organization_id'));
+                    }
                 });
             }
         });

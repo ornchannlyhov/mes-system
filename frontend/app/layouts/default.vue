@@ -30,10 +30,10 @@
           <Icon name="heroicons:bars-3" class="w-6 h-6 text-gray-600" />
         </button>
         <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-primary-500 rounded-lg flex items-center justify-center">
-            <Icon name="heroicons:cube" class="w-4 h-4 text-white" />
+          <div class="w-32 h-10 rounded-lg flex items-center justify-start" :class="logoError ? 'bg-primary-500' : 'bg-transparent'">
+            <img v-show="!logoError" :src="logoSrc" alt="CamSME" class="w-full h-full object-contain object-left" @error="logoError = true" />
+            <Icon v-if="logoError" name="heroicons:cube" class="w-6 h-6 text-white" />
           </div>
-          <span class="text-lg font-bold text-gray-800">MES</span>
         </div>
       </header>
 
@@ -63,6 +63,8 @@ const { isAuthenticated, checkAuth } = useAuth()
 // Mobile sidebar state
 const sidebarOpen = ref(false)
 const initialized = ref(false)
+const logoError = ref(false)
+const logoSrc = '/images/logo.png'
 
 // Close sidebar on route change
 const route = useRoute()

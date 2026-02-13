@@ -234,12 +234,14 @@
 <script setup lang="ts">
 import type { Stock, StockAdjustment, Lot } from '~/types/models'
 
+import { useInventoryStore } from '~/stores/inventory'
 const { $api } = useApi()
 const toast = useToast()
 const config = useRuntimeConfig()
 const masterStore = useMasterStore()
+const inventoryStore = useInventoryStore()
 
-const stocks = ref<Stock[]>([])
+const stocks = computed(() => inventoryStore.stocks as Stock[])
 const locations = computed(() => masterStore.locations)
 const selectedLocation = ref('')
 const search = ref('')
@@ -343,14 +345,13 @@ watch([search, selectedLocation], () => {
   currentPage.value = 1
 })
 
-async function fetchData() {
+async function fetchData(force = false) {
   loading.value = true
   try {
-    const [stockRes] = await Promise.all([
-      $api<{ data: Stock[] }>('/stocks'),
+    await Promise.all([
+      inventoryStore.fetchStocks(force),
       masterStore.fetchLocations(),
     ])
-    stocks.value = stockRes.data || []
   } catch (e) {
     toast.error('Failed to fetch stock data')
   } finally {
@@ -358,5 +359,5 @@ async function fetchData() {
   }
 }
 
-onMounted(fetchData)
+onMounted(() => fetchData())
 </script>

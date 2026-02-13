@@ -12,7 +12,8 @@ class LotController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Lot::with('product')
+        $query = Lot::select(['id', 'name', 'notes', 'product_id', 'expiry_date', 'created_at'])
+            ->with(['product:id,name,code'])
             ->applyStandardFilters(
                 $request,
                 ['name', 'notes'], // Searchable
@@ -20,7 +21,8 @@ class LotController extends BaseController
             );
 
         return $this->respondWithPagination(
-            $query->paginate($request->get('per_page', 10))
+            $query->paginate($request->get('per_page', 10)),
+            ['counts' => ['total' => Lot::count()]]
         );
     }
 

@@ -31,8 +31,18 @@ class Permission extends Model
         'maintenance:write' => 'Manage Maintenance',
 
         // Engineering
-        'engineering:read' => 'View Engineering Data',
-        'engineering:write' => 'Manage Engineering Data', // Products, BOMs, Work Centers
+        'products:read' => 'View Products',
+        'products:manage' => 'Manage Products',
+        'boms:read' => 'View BOMs',
+        'boms:manage' => 'Manage BOMs',
+        'work_centers:read' => 'View Work Centers',
+        'work_centers:manage' => 'Manage Work Centers',
+
+        // Traceability
+        'lots:read' => 'View Lots',
+        'lots:manage' => 'Manage Lots',
+        'serials:read' => 'View Serials',
+        'serials:manage' => 'Manage Serials',
 
         // Reporting
         'reporting:view' => 'View Reports', // Cost, OEE

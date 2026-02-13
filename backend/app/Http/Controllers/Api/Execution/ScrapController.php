@@ -18,7 +18,8 @@ class ScrapController extends BaseController
 
     public function index(Request $request)
     {
-        $query = Scrap::with(['product', 'manufacturingOrder', 'workOrder', 'reporter', 'location'])
+        $query = Scrap::select(['id', 'product_id', 'manufacturing_order_id', 'work_order_id', 'quantity', 'reason', 'reported_by', 'location_id', 'created_at'])
+            ->with(['product:id,name,code,cost,image_url', 'manufacturingOrder:id,name', 'workOrder:id,status', 'reporter:id,name', 'location:id,name,code'])
             ->applyStandardFilters(
                 $request,
                 [], // Text search handled via relations below

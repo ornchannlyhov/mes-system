@@ -43,20 +43,6 @@ class BomService
                         'instruction_file_url' => $op['instruction_file_url'] ?? null,
                     ]);
 
-                    // Create quality checks
-                    if (isset($op['quality_checks'])) {
-                        foreach ($op['quality_checks'] as $qc) {
-                            $bomOp->qualityChecks()->create([
-                                'label' => $qc['label'],
-                                'type' => $qc['type'],
-                                'description' => $qc['description'] ?? null,
-                                'instructions' => $qc['instructions'] ?? null,
-                                'min_value' => $qc['min_value'] ?? null,
-                                'max_value' => $qc['max_value'] ?? null,
-                                'organization_id' => $bom->organization_id ?? 1, // Assumption, or get from context
-                            ]);
-                        }
-                    }
                 }
             }
 
@@ -110,45 +96,6 @@ class BomService
                         ]);
                         $existingIds[] = $op['id'];
 
-                        // Handle Nested Quality Checks for Existing Operation
-                        /** @var \App\Models\Operation $opModel */
-                        $opModel = $bom->operations()->where('id', $op['id'])->first();
-                        if ($opModel && isset($op['quality_checks'])) {
-                            $existingQcIds = [];
-                            foreach ($op['quality_checks'] as $qc) {
-                                if (isset($qc['id'])) {
-                                    $opModel->qualityChecks()->where('id', $qc['id'])->update([
-                                        'label' => $qc['label'],
-                                        'type' => $qc['type'],
-                                        'description' => $qc['description'] ?? null,
-                                        'instructions' => $qc['instructions'] ?? null,
-                                        'min_value' => $qc['min_value'] ?? null,
-                                        'max_value' => $qc['max_value'] ?? null,
-                                    ]);
-                                    $existingQcIds[] = $qc['id'];
-                                } else {
-                                    $newQc = $opModel->qualityChecks()->create([
-                                        'label' => $qc['label'],
-                                        'type' => $qc['type'],
-                                        'description' => $qc['description'] ?? null,
-                                        'instructions' => $qc['instructions'] ?? null,
-                                        'min_value' => $qc['min_value'] ?? null,
-                                        'max_value' => $qc['max_value'] ?? null,
-                                        'organization_id' => $bom->organization_id ?? 1,
-                                    ]);
-                                    $existingQcIds[] = $newQc->id;
-                                }
-                            }
-                            $opModel->qualityChecks()->whereNotIn('id', $existingQcIds)->delete();
-                        } elseif ($opModel && (!isset($op['quality_checks']) || empty($op['quality_checks']))) {
-                            // If quality_checks field is present but empty, delete all? 
-                            // Or if 'quality_checks' matches null?
-                            // Safest is to only delete if the key 'quality_checks' is expressly provided
-                            if (array_key_exists('quality_checks', $op)) {
-                                $opModel->qualityChecks()->delete();
-                            }
-                        }
-
                     } else {
                         $newOp = $bom->operations()->create([
                             'name' => $op['name'],
@@ -158,21 +105,6 @@ class BomService
                             'needs_quality_check' => $op['needs_quality_check'] ?? false,
                             'instruction_file_url' => $op['instruction_file_url'] ?? null,
                         ]);
-
-                        // Handle nested Quality Checks for New Operation
-                        if (isset($op['quality_checks'])) {
-                            foreach ($op['quality_checks'] as $qc) {
-                                $newOp->qualityChecks()->create([
-                                    'label' => $qc['label'],
-                                    'type' => $qc['type'],
-                                    'description' => $qc['description'] ?? null,
-                                    'instructions' => $qc['instructions'] ?? null,
-                                    'min_value' => $qc['min_value'] ?? null,
-                                    'max_value' => $qc['max_value'] ?? null,
-                                    'organization_id' => $bom->organization_id ?? 1,
-                                ]);
-                            }
-                        }
 
                         $existingIds[] = $newOp->id;
                     }

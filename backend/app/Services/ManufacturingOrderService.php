@@ -82,8 +82,7 @@ class ManufacturingOrderService
                     $stock->lot_id
                 );
             } else {
-                // FALLBACK: Throw error if strict reservation required?
-                // For now, let's enforce it as per user requirement "should reserve"
+                // Enforce stock reservation requirement for production components.
                 $productName = $consumption->product->name ?? 'Product #' . $consumption->product_id;
                 throw new \RuntimeException("Insufficient stock to reserve for component: {$productName} (Required: {$consumption->qty_planned})");
             }

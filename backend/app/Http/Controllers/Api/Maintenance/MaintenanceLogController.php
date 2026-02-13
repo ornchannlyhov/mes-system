@@ -11,7 +11,8 @@ class MaintenanceLogController extends Controller
 {
     public function index(Request $request)
     {
-        $query = MaintenanceLog::with(['equipment', 'performer']);
+        $query = MaintenanceLog::select(['id', 'equipment_id', 'type', 'description', 'performed_by', 'performed_at', 'cost', 'created_at'])
+            ->with(['equipment:id,name,code', 'performer:id,name']);
 
         if ($request->has('equipment_id')) {
             $query->where('equipment_id', $request->equipment_id);

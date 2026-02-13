@@ -75,11 +75,11 @@ export function useServerDataTable<T = any>(options: DataTableOptions) {
             }
 
             // Pagination meta
-            total.value = response.total || 0
-            page.value = response.current_page || 1
-            perPage.value = response.per_page || perPage.value
-            from.value = response.from || 0
-            to.value = response.to || 0
+            total.value = response.meta?.total || response.total || 0
+            page.value = response.meta?.current_page || response.current_page || 1
+            perPage.value = response.meta?.per_page || response.per_page || perPage.value
+            from.value = response.meta?.from || response.from || 0
+            to.value = response.meta?.to || response.to || 0
 
             // Extra meta (like counts)
             if (response.counts) {

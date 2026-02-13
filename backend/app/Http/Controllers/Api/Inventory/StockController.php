@@ -10,7 +10,12 @@ class StockController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Stock::with(['product', 'location', 'lot'])
+        $query = Stock::select(['id', 'product_id', 'location_id', 'lot_id', 'quantity', 'reserved_qty', 'created_at', 'updated_at'])
+            ->with([
+                'product:id,name,code,uom,image_url,cost',
+                'location:id,name,code',
+                'lot:id,name'
+            ])
             ->applyStandardFilters(
                 $request,
                 [], // No direct text fields on stock to search

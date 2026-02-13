@@ -19,6 +19,8 @@ class UnbuildOrder extends Model
         'manufacturing_order_id',
         'reason',
         'created_by',
+        'location_id',
+        'component_location_id',
         'organization_id',
     ];
 

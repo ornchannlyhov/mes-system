@@ -20,7 +20,8 @@ class StockAdjustmentController extends BaseController
      */
     public function index(Request $request)
     {
-        $query = StockAdjustment::with(['product', 'location', 'lot', 'user'])
+        $query = StockAdjustment::select(['id', 'product_id', 'location_id', 'lot_id', 'user_id', 'quantity', 'reason', 'reference', 'notes', 'created_at'])
+            ->with(['product:id,name,code', 'location:id,name,code', 'lot:id,name', 'user:id,name'])
             ->applyStandardFilters(
                 $request,
                 ['reference', 'notes'], // Searchable fields

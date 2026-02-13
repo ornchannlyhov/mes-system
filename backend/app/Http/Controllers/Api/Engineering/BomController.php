@@ -21,7 +21,14 @@ class BomController extends BaseController
 
     public function index(Request $request)
     {
-        $query = Bom::with(['product', 'lines.product', 'operations.workCenter'])
+        $query = Bom::select(['id', 'product_id', 'type', 'qty_produced', 'is_active', 'created_at', 'updated_at'])
+            ->with([
+                'product:id,name,code,image_url',
+                'lines:id,bom_id,product_id,quantity,sequence',
+                'lines.product:id,name,code',
+                'operations:id,bom_id,name,work_center_id,duration_minutes,sequence',
+                'operations.workCenter:id,name,code'
+            ])
             ->applyStandardFilters(
                 $request,
                 [], // No searching by text on base BOM table yet, maybe product name?

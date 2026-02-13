@@ -166,11 +166,13 @@
 
 <script setup lang="ts">
 import type { WorkCenter } from '~/types/models'
+import { useMasterStore } from '~/stores/master'
 
 const { $api } = useApi()
 const toast = useToast()
+const masterStore = useMasterStore()
 
-const workCenters = ref<WorkCenter[]>([])
+const workCenters = computed(() => masterStore.workCenters as WorkCenter[])
 const showModal = ref(false)
 const editing = ref<WorkCenter | null>(null)
 const saving = ref(false)
@@ -210,11 +212,10 @@ function statusDotClass(status: string) {
   return classes[status] || 'bg-green-500'
 }
 
-async function fetchData() {
+async function fetchData(force = false) {
   loading.value = true
   try {
-    const res = await $api<{ data: WorkCenter[] }>('/work-centers')
-    workCenters.value = res.data || []
+    await masterStore.fetchWorkCenters(force)
   } catch (e) {
     toast.error('Failed to fetch data')
   } finally {
@@ -252,7 +253,7 @@ async function save() {
       toast.success('Work center created')
     }
     showModal.value = false
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save')
   } finally {
@@ -272,7 +273,7 @@ async function deleteWorkCenter() {
     await $api(`/work-centers/${deletingItem.value.id}`, { method: 'DELETE' })
     toast.success('Work center deleted')
     showDeleteModal.value = false
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete')
   } finally {

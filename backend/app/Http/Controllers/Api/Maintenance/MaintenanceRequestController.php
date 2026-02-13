@@ -12,7 +12,8 @@ class MaintenanceRequestController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = MaintenanceRequest::with(['equipment', 'requester', 'assignee'])
+        $query = MaintenanceRequest::select(['id', 'name', 'description', 'status', 'priority', 'request_type', 'equipment_id', 'requested_by', 'assigned_to', 'created_at'])
+            ->with(['equipment:id,name,code', 'requester:id,name', 'assignee:id,name'])
             ->applyStandardFilters(
                 $request,
                 ['name', 'description'], // Searchable
@@ -21,9 +22,12 @@ class MaintenanceRequestController extends BaseController
 
         $counts = $this->getStatusCounts(MaintenanceRequest::query(), 'status');
 
+        // Count active issues for dashboard (pending, confirmed, in_progress)
+        $activeCount = MaintenanceRequest::whereIn('status', ['pending', 'confirmed', 'in_progress'])->count();
+
         return $this->respondWithPagination(
             $query->paginate($request->get('per_page', 10)),
-            ['counts' => $counts]
+            ['counts' => $counts, 'active_count' => $activeCount]
         );
     }
 

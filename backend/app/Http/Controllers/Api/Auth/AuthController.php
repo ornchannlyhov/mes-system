@@ -110,20 +110,50 @@ class AuthController extends Controller
                 'name' => $attempt->name . "'s Organization",
             ]);
 
-            // 2. Create Admin Role
+            // 2. Create Default Roles for the Organization
             $adminRole = \App\Models\Role::create([
                 'name' => 'admin',
                 'label' => 'Administrator',
                 'organization_id' => $organization->id,
             ]);
 
+            $managerRole = \App\Models\Role::create([
+                'name' => 'manager',
+                'label' => 'Manager',
+                'organization_id' => $organization->id,
+            ]);
+
+            $operatorRole = \App\Models\Role::create([
+                'name' => 'operator',
+                'label' => 'Operator',
+                'organization_id' => $organization->id,
+            ]);
+
             // 3. Assign Permissions
-            $permissionIds = [];
-            foreach (\App\Models\Permission::DEFAULT_PERMISSIONS as $name => $label) {
-                $permission = \App\Models\Permission::firstOrCreate(['name' => $name], ['label' => $label]);
-                $permissionIds[] = $permission->id;
-            }
-            $adminRole->permissions()->sync($permissionIds);
+            $allPermissions = \App\Models\Permission::all();
+
+            // Admin: All permissions
+            $adminRole->permissions()->sync($allPermissions->pluck('id'));
+
+            // Manager: All except some admin functions
+            $managerPermissions = \App\Models\Permission::where('name', 'not like', 'roles:%')
+                ->where('name', 'not like', 'settings:%')
+                ->where('name', 'not like', 'users:%')
+                ->get();
+            $managerRole->permissions()->sync($managerPermissions->pluck('id'));
+
+            // Operator: Execution, View, and simple operations
+            $operatorPermissions = \App\Models\Permission::where(function ($query) {
+                $query->where('name', 'like', '%:read') // View everything
+                    ->orWhereIn('name', [
+                        'manufacturing:execute',
+                        'quality:write',
+                        'inventory:transfer',
+                        'inventory:adjust',
+                        'maintenance:read'
+                    ]);
+            })->get();
+            $operatorRole->permissions()->sync($operatorPermissions->pluck('id'));
 
             // 4. Create User
             $user = User::create([
@@ -198,9 +228,27 @@ class AuthController extends Controller
         return response()->json(['message' => 'Password updated successfully']);
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(User::with('role')->get());
+        $query = User::with('role')
+            ->applyStandardFilters(
+                $request,
+                ['name', 'email'], // Searchable
+                ['role_id', 'is_active'] // Filterable
+            );
+
+
+        $paginator = $query->paginate($request->get('per_page', 10));
+
+        return response()->json([
+            'data' => $paginator->items(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ]
+        ]);
     }
 
     public function updateRole(UpdateUserRoleRequest $request, User $user)
@@ -243,9 +291,9 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => $validated['password'],
+            'password' => $validated['password'], // Already hashed in StoreUserRequest or here?
             'role_id' => $validated['role_id'],
-            'organization_id' => $request->user()->organization_id ?? 1, // Default or current user's org
+            'organization_id' => $request->user()->organization_id, // Strictly Org ID from current user
             'is_active' => true,
         ]);
 

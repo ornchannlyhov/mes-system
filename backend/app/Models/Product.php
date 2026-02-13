@@ -24,23 +24,12 @@ class Product extends Model
         'is_active',
         'version',
         'organization_id',
-        'product_template_id',
     ];
 
     protected $casts = [
         'cost' => 'decimal:4',
         'is_active' => 'boolean',
     ];
-
-    public function template(): \Illuminate\Database\Eloquent\Relations\BelongsTo
-    {
-        return $this->belongsTo(ProductTemplate::class, 'product_template_id');
-    }
-
-    public function variantAttributes(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
-    {
-        return $this->belongsToMany(AttributeValue::class, 'product_variant_attributes', 'product_id', 'attribute_value_id');
-    }
 
     public function boms(): HasMany
     {

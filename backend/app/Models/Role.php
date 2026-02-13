@@ -10,6 +10,11 @@ class Role extends Model
 
     protected $fillable = ['name', 'label', 'organization_id'];
 
+    public function allowGlobalRecords(): bool
+    {
+        return true;
+    }
+
     public function users(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(User::class);

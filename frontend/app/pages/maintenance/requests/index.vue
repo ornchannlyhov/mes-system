@@ -143,13 +143,18 @@
 
 <script setup lang="ts">
 import type { Equipment, MaintenanceRequest } from '~/types/models'
+import { useMaintenanceStore } from '~/stores/maintenance'
+import { useMasterStore } from '~/stores/master'
 
 const { $api } = useApi()
 const toast = useToast()
 const { formatDate } = useUtils()
+const maintenanceStore = useMaintenanceStore()
+const masterStore = useMasterStore()
 
-const requests = ref<MaintenanceRequest[]>([])
-const equipment = ref<Equipment[]>([])
+const requests = computed(() => maintenanceStore.requests as MaintenanceRequest[])
+const equipment = computed(() => masterStore.equipment as Equipment[])
+
 const showModal = ref(false)
 const showDeleteModal = ref(false)
 const saving = ref(false)
@@ -163,15 +168,13 @@ const deletingRequest = ref<MaintenanceRequest | null>(null)
 
 const form = ref({ description: '', equipment_id: null as number | null, priority: 'normal', request_type: 'corrective' })
 
-async function fetchData() {
+async function fetchData(force = false) {
   loading.value = true
   try {
-    const [reqRes, eqRes] = await Promise.all([
-      $api<{ data: MaintenanceRequest[] }>('/maintenance/requests'),
-      $api<{ data: Equipment[] }>('/equipment'),
+    await Promise.all([
+      maintenanceStore.fetchRequests(force),
+      masterStore.fetchEquipment(force)
     ])
-    requests.value = reqRes.data || []
-    equipment.value = eqRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
   } finally {
@@ -206,7 +209,7 @@ async function save() {
         toast.success('Request submitted successfully')
     }
     showModal.value = false
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to submit request')
   } finally {
@@ -218,7 +221,7 @@ async function complete(req: MaintenanceRequest) {
   try {
     await $api(`/maintenance/requests/${req.id}`, { method: 'PATCH', body: { status: 'done' } })
     toast.success('Request completed')
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to complete request')
   }
@@ -236,7 +239,7 @@ async function handleDelete() {
         await $api(`/maintenance/requests/${deletingRequest.value.id}`, { method: 'DELETE' })
         toast.success('Request deleted')
         showDeleteModal.value = false
-        await fetchData()
+        await fetchData(true)
     } catch (e: any) {
         toast.error(e.data?.message || 'Failed to delete request')
     } finally {

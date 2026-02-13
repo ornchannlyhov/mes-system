@@ -43,6 +43,8 @@ class ClothingSeeder extends Seeder
         $this->createEquipmentAndMaintenance();
         $this->createManufacturingOrders();
         $this->createJeansProduct();
+        $this->createScrapAndLosses();
+        $this->createUnbuildOrder();
     }
 
     private function truncateTables(): void
@@ -66,7 +68,6 @@ class ClothingSeeder extends Seeder
         \App\Models\StockAdjustment::truncate();
         \App\Models\Scrap::truncate();
         \App\Models\UnbuildOrder::truncate();
-        \App\Models\TimeLog::truncate();
         Schema::enableForeignKeyConstraints();
     }
 
@@ -408,6 +409,53 @@ class ClothingSeeder extends Seeder
             'location_id' => $location->id,
             'quantity' => $qty,
             'lot_id' => $lotId
+        ]);
+    }
+
+    private function createScrapAndLosses(): void
+    {
+        $this->command->info('Creating Scrap and Losses...');
+
+        // 1. Scrap some damaged fabric
+        \App\Models\Scrap::create([
+            'organization_id' => $this->orgId,
+            'product_id' => $this->cottonFabric->id,
+            'quantity' => 50,
+            'reason' => 'Water damage during storage',
+            'location_id' => $this->whLoc->id,
+            'reported_by' => $this->user->id
+        ]);
+
+        // 2. Report value loss (Material Variance)
+        // Find a completed MO to attach specific loss to
+        $mo = ManufacturingOrder::where('status', 'done')->first();
+        if ($mo) {
+            \App\Models\CostEntry::create([
+                'manufacturing_order_id' => $mo->id,
+                'cost_type' => 'material_variance',
+                'notes' => 'Fabric stretching loss',
+                'total_cost' => 15.00,
+                'organization_id' => $this->orgId,
+                'created_at' => now()->subDays(1)
+            ]);
+        }
+    }
+
+    private function createUnbuildOrder(): void
+    {
+        $this->command->info('Creating Unbuild Order...');
+
+        // Unbuild 5 T-Shirts back into materials
+        $unbuild = \App\Models\UnbuildOrder::create([
+            'organization_id' => $this->orgId,
+            'name' => 'UB-2026-001',
+            'product_id' => $this->tshirt->id,
+            'bom_id' => $this->bom->id,
+            'quantity' => 5,
+            'status' => 'done',
+            'reason' => 'Defective stitching batch',
+            'created_by' => $this->user->id,
+            'created_at' => now()->subDays(2)
         ]);
     }
 }

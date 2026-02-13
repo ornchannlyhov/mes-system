@@ -12,11 +12,25 @@ class ProductController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = Product::query()->applyStandardFilters(
-            $request,
-            ['code', 'name'], // Searchable fields
-            ['type', 'tracking', 'is_active'] // Exact match filters
-        );
+        $query = Product::select([
+            'id',
+            'code',
+            'name',
+            'type',
+            'uom',
+            'cost',
+            'image_url',
+            'tracking',
+            'is_active',
+            'version',
+            'created_at',
+            'updated_at'
+        ])
+            ->applyStandardFilters(
+                $request,
+                ['code', 'name'], // Searchable fields
+                ['type', 'tracking', 'is_active'] // Exact match filters
+            );
 
         $counts = $this->getStatusCounts(Product::query(), 'type');
 

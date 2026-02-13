@@ -139,13 +139,18 @@
 
 <script setup lang="ts">
 import type { Equipment, MaintenanceSchedule as Schedule } from '~/types/models'
+import { useMaintenanceStore } from '~/stores/maintenance'
+import { useMasterStore } from '~/stores/master'
 
 const { $api } = useApi()
 const toast = useToast()
 const { formatDate } = useUtils()
+const maintenanceStore = useMaintenanceStore()
+const masterStore = useMasterStore()
 
-const schedules = ref<Schedule[]>([])
-const equipment = ref<Equipment[]>([])
+const schedules = computed(() => maintenanceStore.schedules as Schedule[])
+const equipment = computed(() => masterStore.equipment as Equipment[])
+
 const showModal = ref(false)
 const editing = ref<Schedule | null>(null)
 const saving = ref(false)
@@ -171,15 +176,13 @@ function isDue(date?: string) {
   return scheduleDate <= today
 }
 
-async function fetchData() {
+async function fetchData(force = false) {
   loading.value = true
   try {
-    const [schedRes, eqRes] = await Promise.all([
-      $api<{ data: Schedule[] }>('/maintenance/schedules'),
-      $api<{ data: Equipment[] }>('/equipment'),
+    await Promise.all([
+      maintenanceStore.fetchSchedules(force),
+      masterStore.fetchEquipment(force)
     ])
-    schedules.value = schedRes.data || []
-    equipment.value = eqRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
   } finally {
@@ -209,7 +212,7 @@ async function save() {
       toast.success('Schedule created successfully')
     }
     showModal.value = false
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save schedule')
   } finally {
@@ -222,7 +225,7 @@ async function completeSchedule(schedule: Schedule) {
   try {
     await $api(`/maintenance/schedules/${schedule.id}/complete`, { method: 'POST' })
     toast.success('Maintenance completed - next maintenance scheduled')
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to complete maintenance')
   } finally {
@@ -244,7 +247,7 @@ async function deleteSchedule() {
     toast.success('Schedule deleted')
     showDeleteModal.value = false
     deletingItem.value = null
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete schedule')
   } finally {

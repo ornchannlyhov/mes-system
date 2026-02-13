@@ -7,14 +7,13 @@
         <p class="text-gray-500 mt-1 hidden sm:block">Overview of manufacturing operations</p>
       </div>
       <div class="flex gap-2">
-        <button class="btn-primary" @click="refreshData">
-          <Icon name="heroicons:arrow-path" class="w-4 h-4" />
-          <span class="hidden sm:inline">Refresh</span>
+        <button class="btn-primary" @click="refreshData" :disabled="refreshing">
+          <Icon name="heroicons:arrow-path" class="w-4 h-4" :class="{ 'animate-spin': refreshing }" />
+          <span class="hidden sm:inline">{{ refreshing ? 'Refreshing...' : 'Refresh' }}</span>
         </button>
       </div>
     </div>
 
-    <!-- Tabs -->
     <!-- Tabs -->
     <div class="border-b border-gray-200 overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
       <nav class="-mb-px flex gap-2">
@@ -235,36 +234,45 @@ const productionChartData = ref<ChartData<'bar'> | null>(null)
 const statusChartData = ref<ChartData<'doughnut'> | null>(null)
 const qualityChartData = ref<ChartData<'doughnut'> | null>(null)
 
-// Fetch data
+import { useExecutionStore } from '~/stores/execution'
+const executionStore = useExecutionStore()
 async function fetchData() {
   try {
     const [moRes, woRes, mrRes] = await Promise.all([
-         $api<{ data: ManufacturingOrder[] }>('/manufacturing-orders', { query: { per_page: 50, sort_by: 'created_at', sort_dir: 'desc' } }),
+         $api<any>('/manufacturing-orders', { query: { per_page: 1 } }),
          $api<any>('/work-orders', { query: { per_page: 1 } }),
-         $api<{ data: { status: string }[] }>('/maintenance/requests', { query: { per_page: 100 } }),
+         $api<any>('/maintenance/requests', { query: { per_page: 1 } }),
+    ])
+
+    // Wait for store to ensure list is populated for charts/table
+    await Promise.all([
+         executionStore.fetchManufacturingOrders(),
+         executionStore.fetchWorkOrders(),
     ])
     
-    recentMOs.value = moRes.data?.slice(0, 10) || []
-    const allMOs = moRes.data || []
-    const maintenanceRequests = mrRes.data || []
+    // Access data from store
+    const allMOs = executionStore.manufacturingOrders as ManufacturingOrder[]
+    const allWOs = executionStore.workOrders as WorkOrder[]
+
+    recentMOs.value = allMOs.slice(0, 10)
 
 
-    // Calculate stats
-    stats.value.activeMOs = allMOs.filter(mo => 
-      ['confirmed', 'in_progress'].includes(mo.status)
-    ).length
+    // Calculate stats using backend counts for accuracy
+    const moCounts = moRes.meta?.counts || {}
+    stats.value.activeMOs = (moCounts.confirmed || 0) + (moCounts.in_progress || 0)
+    
     const today = new Date().toISOString().split('T')[0] || ''
+    // "Completed Today" still needs client-side or separate API if not provided in counts
+    // For now, if < 100, the store data is fine. If > 100, we might need a daily stats endpoint.
     stats.value.completedToday = allMOs.filter(mo => 
        mo.status === 'done' && ((mo.actual_end || '').startsWith(today) || (mo.created_at || '').startsWith(today))
     ).length
     
-    // Use backend counts for Work Orders if available
-    const woCounts = woRes.counts || woRes.meta?.counts || {}
+    const woCounts = woRes.meta?.counts || {}
     stats.value.activeWOs = (woCounts.ready || 0) + (woCounts.in_progress || 0)
 
-    stats.value.equipmentIssues = maintenanceRequests.filter(mr => 
-      ['pending', 'confirmed', 'in_progress'].includes(mr.status)
-    ).length
+    // Use backend-provided active_count for maintenance requests
+    stats.value.equipmentIssues = mrRes.meta?.active_count || 0
 
     // --- Chart Prep ---
 
@@ -328,9 +336,9 @@ async function fetchData() {
     }
 
     // 3. Quality Yield (From QA Counts)
-    const qaCounts = woRes.qa_counts || woRes.meta?.qa_counts || {}
-    const passCount = qaCounts.pass || 0
-    const failCount = qaCounts.fail || 0
+    // Client-side calculation from store data
+    const passCount = allWOs.filter(w => w.qa_status === 'pass').length
+    const failCount = allWOs.filter(w => w.qa_status === 'fail').length
     const totalChecks = passCount + failCount
 
     if (totalChecks > 0) {
@@ -353,13 +361,20 @@ async function fetchData() {
   }
 }
 
-function refreshData() {
-  if (activeTab.value === 'overview') {
-    fetchData()
-  } else if (activeTab.value === 'oee') {
-    oeeReportRef.value?.fetchRecords()
-  } else if (activeTab.value === 'cost') {
-    costReportRef.value?.fetchEntries()
+const refreshing = ref(false)
+
+async function refreshData() {
+  refreshing.value = true
+  try {
+    if (activeTab.value === 'overview') {
+      await fetchData()
+    } else if (activeTab.value === 'oee') {
+      await oeeReportRef.value?.fetchRecords()
+    } else if (activeTab.value === 'cost') {
+      await costReportRef.value?.fetchEntries()
+    }
+  } finally {
+    refreshing.value = false
   }
 }
 

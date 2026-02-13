@@ -25,13 +25,18 @@
       >
         <Icon name="heroicons:chevron-left" class="w-4 h-4" />
       </button>
-      <!-- Logo & Close -->
-      <div class="h-16 flex items-center justify-between px-6 border-b border-gray-100">
-        <div class="flex items-center gap-3 overflow-hidden">
-          <div class="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center shrink-0">
-            <Icon name="heroicons:cube" class="w-5 h-5 text-white" />
+      <div class="h-16 flex items-center px-4 border-b border-gray-100 transition-all duration-300 justify-center">
+        <div class="overflow-hidden transition-all duration-300">
+          <div 
+            :class="[
+              isCollapsed ? 'w-10 h-10' : 'w-32 h-8',
+              'rounded-lg flex items-center justify-center shrink-0 transition-all duration-300',
+              logoError ? 'bg-primary-500' : 'bg-transparent'
+            ]"
+          >
+             <img v-show="!logoError" :src="logoSrc" alt="CamSME Logo" class="w-full h-full object-contain" @error="logoError = true" />
+             <Icon v-if="logoError" name="heroicons:cube" :class="isCollapsed ? 'w-6 h-6' : 'w-6 h-6'" class="text-white" />
           </div>
-          <span v-if="!isCollapsed" class="text-lg font-bold text-gray-800 whitespace-nowrap transition-opacity duration-200">MES</span>
         </div>
 
 
@@ -222,6 +227,8 @@ const showUserMenu = ref(false)
 const showLogoutModal = ref(false)
 const loggingOut = ref(false)
 const userMenuRef = ref<HTMLElement>()
+const logoError = ref(false)
+const logoSrc = '/images/logo.png'
 
 // Sidebar visibility - always visible on desktop (>=1024px), controlled on mobile/tablet
 const isDesktop = ref(true)

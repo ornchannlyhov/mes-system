@@ -23,7 +23,25 @@ class ManufacturingOrderController extends BaseController
 
     public function index(Request $request)
     {
-        $query = ManufacturingOrder::with(['product'])
+        $query = ManufacturingOrder::select([
+            'id',
+            'name',
+            'status',
+            'priority',
+            'qty_to_produce',
+            'qty_produced',
+            'product_id',
+            'bom_id',
+            'scheduled_start',
+            'scheduled_end',
+            'actual_start',
+            'actual_end',
+            'created_at'
+        ])
+            ->with([
+                'product:id,name,code,uom,image_url',
+                'bom:id,type,qty_produced'
+            ])
             ->applyStandardFilters(
                 $request,
                 [], // Text search handled via custom logic below
@@ -132,19 +150,22 @@ class ManufacturingOrderController extends BaseController
     public function calendar(GetCalendarRequest $request)
     {
         $validated = $request->validated();
+        $cacheKey = "calendar_mos_{$validated['start']}_{$validated['end']}";
 
-        $orders = ManufacturingOrder::with(['product', 'bom'])
-            ->where(function ($query) use ($validated) {
-                $query->whereBetween('scheduled_start', [$validated['start'], $validated['end']])
-                    ->orWhereBetween('scheduled_end', [$validated['start'], $validated['end']])
-                    ->orWhere(function ($q) use ($validated) {
-                        $q->where('scheduled_start', '<=', $validated['start'])
-                            ->where('scheduled_end', '>=', $validated['end']);
-                    });
-            })
-            ->whereNotNull('scheduled_start')
-            ->orderBy('scheduled_start')
-            ->get();
+        $orders = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($validated) {
+            return ManufacturingOrder::with(['product:id,name,code', 'bom:id,code'])
+                ->where(function ($query) use ($validated) {
+                    $query->whereBetween('scheduled_start', [$validated['start'], $validated['end']])
+                        ->orWhereBetween('scheduled_end', [$validated['start'], $validated['end']])
+                        ->orWhere(function ($q) use ($validated) {
+                            $q->where('scheduled_start', '<=', $validated['start'])
+                                ->where('scheduled_end', '>=', $validated['end']);
+                        });
+                })
+                ->whereNotNull('scheduled_start')
+                ->orderBy('scheduled_start')
+                ->get(['id', 'name', 'status', 'scheduled_start', 'scheduled_end', 'product_id', 'bom_id']); // Select only needed columns
+        });
 
         return $this->success($orders);
     }

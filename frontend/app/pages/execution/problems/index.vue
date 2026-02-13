@@ -512,9 +512,24 @@
            <p class="text-xs text-gray-500 mt-1">Link to original MO if known</p>
         </div>
 
-        <div>
-           <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-           <input v-model.number="unbuildForm.quantity" type="number" min="0.0001" step="0.0001" class="input" required />
+        <div v-if="unbuildForm.product_id">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Source Location</label>
+            <UiSearchableSelect
+              v-model="unbuildForm.location_id"
+              :options="locations.map(l => ({ label: l.name, value: l.id }))"
+              placeholder="Select source location..."
+            />
+            <p class="text-xs text-gray-500 mt-1">Where to deduct the finished product from</p>
+        </div>
+
+        <div v-if="unbuildForm.bom_id">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Component Return Location</label>
+            <UiSearchableSelect
+              v-model="unbuildForm.component_location_id"
+              :options="locations.map(l => ({ label: l.name, value: l.id }))"
+              placeholder="Select return location..."
+            />
+            <p class="text-xs text-gray-500 mt-1">Where to return disassembled components</p>
         </div>
 
         <div>
@@ -668,7 +683,7 @@ const editingUnbuild = ref<UnbuildOrder | null>(null)
 // Forms
 const scrapForm = ref({ product_id: null as number | null, location_id: null as number | null, quantity: 1, reason: '' })
 const lossForm = ref({ manufacturing_order_id: null as number | null, product_id: null as number | null, qty_planned: 0, qty_consumed: 0 })
-const unbuildForm = ref({ product_id: null as number | null, bom_id: null as number | null, manufacturing_order_id: null as number | null, quantity: 1, reason: '' })
+const unbuildForm = ref({ product_id: null as number | null, bom_id: null as number | null, manufacturing_order_id: null as number | null, location_id: null as number | null, component_location_id: null as number | null, quantity: 1, reason: '' })
 
 // Delete Confirmation
 const deleteType = ref<'scrap' | 'variance' | 'unbuild'>('scrap')
@@ -690,10 +705,6 @@ async function executeDelete() {
             toast.success('Scrap record deleted')
             refreshScraps()
         } else if (deleteType.value === 'variance') {
-             // Variance usually shouldn't be deleted manually if auto-generated, but maybe allowed for correction?
-             // Assuming endpoint exists or we revert? 
-             // Actually backend might not allow deleting consumption easily without reverting stock logic.
-             // For now assuming generic DELETE endpoint exists or user logic allows it.
              await $api(`/consumptions/${deleteTarget.value.id}`, { method: 'DELETE' })
              toast.success('Variance record deleted')
              refreshVariances()
@@ -879,6 +890,8 @@ function openUnbuildModal(order?: UnbuildOrder) {
             product_id: order.product_id,
             bom_id: order.bom_id || null,
             manufacturing_order_id: order.manufacturing_order_id || null,
+            location_id: (order as any).location_id || null,
+            component_location_id: (order as any).component_location_id || null,
             quantity: order.quantity,
             reason: order.reason || ''
         }
@@ -889,7 +902,15 @@ function openUnbuildModal(order?: UnbuildOrder) {
         }
     } else {
         editingUnbuild.value = null
-        unbuildForm.value = { product_id: null, bom_id: null, manufacturing_order_id: null, quantity: 1, reason: '' }
+        unbuildForm.value = {
+            product_id: null,
+            bom_id: null,
+            manufacturing_order_id: null,
+            location_id: null,
+            component_location_id: null,
+            quantity: 1,
+            reason: ''
+        }
         productBoms.value = []
     }
     showUnbuildModal.value = true

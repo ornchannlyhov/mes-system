@@ -154,12 +154,15 @@
 
 <script setup lang="ts">
 import type { Role, Permission } from '~/types/models'
+import { useAdminStore } from '~/stores/admin'
 
 const { $api } = useApi()
 const toast = useToast()
+const adminStore = useAdminStore()
 
-const roles = ref<Role[]>([])
-const allPermissions = ref<Permission[]>([])
+const roles = computed(() => adminStore.roles as Role[])
+const allPermissions = computed(() => adminStore.permissions as Permission[])
+
 const showModal = ref(false)
 const showDeleteModal = ref(false)
 const saving = ref(false)
@@ -185,15 +188,13 @@ const form = ref({
     permissions: [] as number[] 
 })
 
-async function fetchData() {
+async function fetchData(force = false) {
   loading.value = true
   try {
-    const [rolesRes, customPermissionsRes] = await Promise.all([
-       $api<{ data: Role[] }>('/roles'),
-       $api<{ data: Permission[] }>('/permissions'),
+    await Promise.all([
+       adminStore.fetchRoles(force),
+       adminStore.fetchPermissions(force),
     ])
-    roles.value = rolesRes.data || []
-    allPermissions.value = customPermissionsRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
   } finally {
@@ -257,7 +258,7 @@ async function handleDelete() {
         await $api(`/roles/${roleToDelete.value.id}`, { method: 'DELETE' })
         toast.success('Role deleted')
         showDeleteModal.value = false
-        await fetchData()
+        await fetchData(true)
     } catch (e) {
         toast.error('Failed to delete role')
     } finally {
@@ -283,7 +284,7 @@ async function save() {
         toast.success('Role created')
     }
     showModal.value = false
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save role')
   } finally {

@@ -12,7 +12,8 @@ class MaintenanceScheduleController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = MaintenanceSchedule::with('equipment')
+        $query = MaintenanceSchedule::select(['id', 'equipment_id', 'name', 'interval_days', 'next_maintenance', 'last_maintenance', 'is_active', 'created_at'])
+            ->with(['equipment:id,name,code,status'])
             ->applyStandardFilters(
                 $request,
                 ['name', 'instructions'], // Searchable

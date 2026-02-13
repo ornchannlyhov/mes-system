@@ -11,7 +11,8 @@ class CostEntryController extends BaseController
 {
     public function index(Request $request)
     {
-        $query = CostEntry::with('product')
+        $query = CostEntry::select(['id', 'cost_type', 'manufacturing_order_id', 'product_id', 'quantity', 'unit_cost', 'total_cost', 'created_at'])
+            ->with(['product:id,name,code,uom'])
             ->applyStandardFilters(
                 $request,
                 ['notes'], // Searchable
@@ -25,9 +26,7 @@ class CostEntryController extends BaseController
 
     public function analysis(ManufacturingOrder $manufacturingOrder)
     {
-        // For now, simpler implementation calculating from CostEntries
-        // In future, we might aggregate 'TimeLogs' and 'StockMoves'
-
+        // Calculate cost analysis by aggregating all related CostEntries.
         $entries = CostEntry::where('manufacturing_order_id', $manufacturingOrder->id)->get();
 
         $summary = [

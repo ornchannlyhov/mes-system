@@ -124,10 +124,12 @@
 <script setup lang="ts">
 import type { Location } from '~/types/models'
 
+import { useMasterStore } from '~/stores/master'
 const { $api } = useApi()
 const toast = useToast()
+const masterStore = useMasterStore()
 
-const locations = ref<Location[]>([])
+const locations = computed(() => masterStore.locations as Location[])
 const currentPage = ref(1)
 const pageSize = 10
 const showModal = ref(false)
@@ -154,11 +156,10 @@ function typeClass(type: string) {
   }[type] || 'badge-gray'
 }
 
-async function fetchLocations() {
+async function fetchLocations(force = false) {
   loading.value = true
   try {
-    const response = await $api<{ data: Location[] }>('/locations')
-    locations.value = response.data || []
+    await masterStore.fetchLocations(force)
   } catch (e) {
     toast.error('Failed to fetch locations')
   } finally {
@@ -188,7 +189,7 @@ async function save() {
       toast.success('Location created successfully')
     }
     showModal.value = false
-    await fetchLocations()
+    await fetchLocations(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save location')
   } finally {
@@ -208,7 +209,7 @@ async function deleteLocation() {
     await $api(`/locations/${deletingItem.value.id}`, { method: 'DELETE' })
     toast.success('Location deleted successfully')
     showDeleteModal.value = false
-    await fetchLocations()
+    await fetchLocations(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete location')
   } finally {
@@ -222,5 +223,5 @@ const paginatedLocations = computed(() => {
   return locations.value.slice(start, start + pageSize)
 })
 
-onMounted(fetchLocations)
+onMounted(() => fetchLocations())
 </script>

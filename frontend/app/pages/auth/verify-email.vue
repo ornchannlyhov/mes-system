@@ -3,8 +3,11 @@
     <div class="animate-fade-in text-center">
       <!-- Header -->
       <div class="mb-8">
-        <div class="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-           <Icon name="heroicons:envelope" class="w-7 h-7 text-primary-600" />
+        <div class="flex justify-center mb-8">
+          <img v-show="!logoError" :src="logoSrc" alt="CamSME Logo" class="h-12 w-auto object-contain" @error="logoError = true" />
+          <div v-if="logoError" class="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center">
+             <Icon name="heroicons:envelope" class="w-8 h-8 text-primary-600" />
+          </div>
         </div>
         <h2 class="text-2xl font-bold text-gray-900 tracking-tight">Verify your email</h2>
         <p class="mt-2 text-sm text-gray-500">
@@ -64,6 +67,8 @@ const route = useRoute()
 const email = (route.query.email as string) || ''
 const code = ref('')
 const loading = ref(false)
+const logoSrc = '/images/logo.png'
+const logoError = ref(false)
 
 definePageMeta({
   layout: false

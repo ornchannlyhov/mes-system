@@ -40,6 +40,11 @@ return new class extends Migration {
 
             $table->timestamps();
             $table->softDeletes();
+
+            // Performance Indexes
+            $table->index('status');
+            $table->index('request_type');
+            $table->index('priority');
         });
     }
 

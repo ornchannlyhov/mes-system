@@ -21,11 +21,12 @@ class LocationController extends BaseController
 
     public function index(Request $request)
     {
-        $query = Location::query()->applyStandardFilters(
-            $request,
-            ['name', 'code'],
-            ['type', 'organization_id']
-        );
+        $query = Location::select(['id', 'code', 'name', 'type', 'organization_id', 'created_at'])
+            ->applyStandardFilters(
+                $request,
+                ['name', 'code'],
+                ['type', 'organization_id']
+            );
 
         $counts = $this->getStatusCounts(Location::query(), 'type');
 

@@ -281,13 +281,16 @@
 
 <script setup lang="ts">
 import type { User, Role } from '~/types/models'
+import { useAdminStore } from '~/stores/admin'
 
 const { $api } = useApi()
 const toast = useToast()
 const { getImageUrl, formatDate } = useUtils()
+const adminStore = useAdminStore()
 
-const users = ref<User[]>([])
-const roles = ref<Role[]>([])
+const users = computed(() => adminStore.users as User[])
+const roles = computed(() => adminStore.roles as Role[])
+
 const showModal = ref(false)
 const showDetailModal = ref(false)
 const showDeleteModal = ref(false)
@@ -331,15 +334,13 @@ const detailUserPermissions = computed(() => {
     return role?.permissions || []
 })
 
-async function fetchData() {
+async function fetchData(force = false) {
   loading.value = true
   try {
-    const [usersRes, rolesRes] = await Promise.all([
-      $api<User[]>('/users'),
-      $api<{ data: Role[] }>('/roles'),
+    await Promise.all([
+      adminStore.fetchUsers(force),
+      adminStore.fetchRoles(force),
     ])
-    users.value = usersRes || []
-    roles.value = rolesRes.data || []
   } catch (e) {
     toast.error('Failed to fetch data')
   } finally {
@@ -400,7 +401,7 @@ async function handleDelete() {
         await $api(`/users/${userToDelete.value.id}`, { method: 'DELETE' })
         toast.success('User deleted')
         showDeleteModal.value = false
-        await fetchData()
+        await fetchData(true)
     } catch (e: any) {
         toast.error(e.data?.message || 'Failed to delete user')
     } finally {
@@ -437,7 +438,7 @@ async function save() {
         toast.success('User created')
     }
     showModal.value = false
-    await fetchData()
+    await fetchData(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save user')
   } finally {
