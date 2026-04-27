@@ -77,13 +77,18 @@
         <div 
           v-for="(day, index) in calendarDays" 
           :key="index"
-          :class="['bg-white p-2 min-h-[120px] relative', !day.isCurrentMonth && 'bg-gray-50 text-gray-400', day.isToday && 'bg-blue-50']"
+          :class="['bg-white p-2 min-h-[120px] relative transition-colors', !day.isCurrentMonth && 'bg-gray-50 text-gray-400', day.isToday && 'bg-primary-50 ring-1 ring-inset ring-primary-200 z-10']"
           @drop="onDrop($event, day)"
           @dragover.prevent
           @dragenter="onDragEnter($event)"
           @dragleave="onDragLeave($event)"
         >
-          <div class="text-sm font-medium mb-2">{{ day.date }}</div>
+          <div class="flex justify-between items-start mb-2">
+            <span :class="['text-sm font-medium flex items-center justify-center w-7 h-7 rounded-full transition-all', day.isToday ? 'bg-primary-600 text-white shadow-sm' : 'text-gray-700']">
+              {{ day.date }}
+            </span>
+            <span v-if="day.isToday" class="text-[10px] font-bold text-primary-600 uppercase tracking-wider">Today</span>
+          </div>
           <div class="space-y-1">
             <div 
               v-for="mo in day.orders" 
@@ -92,7 +97,7 @@
               @dragstart="onDragStart($event, mo)"
               @dragend="onDragEnd"
               @click="openDetail(mo)"
-              :class="['text-xs p-2 rounded cursor-move shadow-sm border-l-4', getStatusColor(mo.status)]"
+              :class="['text-xs p-2 rounded cursor-move shadow-sm border-l-4 transition-all hover:scale-[1.02] hover:shadow-md', getStatusColor(mo.status)]"
               :title="`${mo.name}: ${mo.product?.name} (${mo.qty_to_produce})`"
             >
               <div class="font-semibold">{{ mo.name }}</div>
@@ -200,7 +205,7 @@
                   :loading="actionLoading === mo.id"
                   :disabled="actionLoading === mo.id"
                 />
-
+                
                 <!-- Mark Done button -->
                 <UiIconButton 
                   v-if="mo.status === 'in_progress'" 
@@ -344,7 +349,7 @@
     <UiImagePreview v-model="showImagePreview" :src="previewImage.src" :alt="previewImage.alt" />
 
     <UiSlideOver v-model="showDetailModal" title="Manufacturing Order Detail" width="sm:w-[75vw]">
-       <ExecutionManufacturingOrderDetail v-if="selectedOrderId" :order-id="selectedOrderId" @updated="refreshTable" />
+        <ExecutionManufacturingOrderDetail v-if="selectedOrderId" :order-id="selectedOrderId" @updated="refreshTable(true)" />
     </UiSlideOver>
 
     <!-- Confirm Modal -->
@@ -426,7 +431,10 @@ const tableOrders = computed(() => {
 async function refreshTable(force = false) {
   loading.value = true
   try {
-    await executionStore.fetchManufacturingOrders(force)
+    await Promise.all([
+      executionStore.fetchManufacturingOrders(force),
+      executionStore.fetchWorkOrders(force),
+    ])
   } finally {
     loading.value = false
   }
@@ -478,28 +486,54 @@ const calendarDays = computed(() => {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   
-  const prevMonthLastDay = new Date(year,month, 0).getDate()
-  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-    days.push({ date: prevMonthLastDay - i, isCurrentMonth: false, isToday: false, orders: [], fullDate: new Date(year, month - 1, prevMonthLastDay - i) })
-  }
-  
-  for (let date = 1; date <= daysInMonth; date++) {
-    const dayDate = new Date(year, month, date)
-    const isToday = dayDate.getTime() === today.getTime()
-    
-    const ordersOnDay = calendarOrders.value.filter(mo => {
+  const getOrdersOnDay = (dayDate: Date) => {
+    return calendarOrders.value.filter(mo => {
       if (!mo.scheduled_start) return false
       const startDate = new Date(mo.scheduled_start)
       const endDate = mo.scheduled_end ? new Date(mo.scheduled_end) : startDate
       return dayDate >= new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()) &&
              dayDate <= new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
     })
-    days.push({ date, isCurrentMonth: true, isToday, orders: ordersOnDay, fullDate: dayDate })
+  }
+
+  const prevMonthLastDay = new Date(year, month, 0).getDate()
+  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+    const d = prevMonthLastDay - i
+    const fullDate = new Date(year, month - 1, d)
+    fullDate.setHours(0, 0, 0, 0)
+    days.push({ 
+      date: d, 
+      isCurrentMonth: false, 
+      isToday: fullDate.getTime() === today.getTime(), 
+      orders: getOrdersOnDay(fullDate), 
+      fullDate 
+    })
+  }
+  
+  for (let date = 1; date <= daysInMonth; date++) {
+    const dayDate = new Date(year, month, date)
+    dayDate.setHours(0, 0, 0, 0)
+    const isToday = dayDate.getTime() === today.getTime()
+    days.push({ 
+      date, 
+      isCurrentMonth: true, 
+      isToday, 
+      orders: getOrdersOnDay(dayDate), 
+      fullDate: dayDate 
+    })
   }
   
   const remainingDays = 42 - days.length
   for (let date = 1; date <= remainingDays; date++) {
-    days.push({ date, isCurrentMonth: false, isToday: false, orders: [], fullDate: new Date(year, month + 1, date) })
+    const fullDate = new Date(year, month + 1, date)
+    fullDate.setHours(0, 0, 0, 0)
+    days.push({ 
+      date, 
+      isCurrentMonth: false, 
+      isToday: fullDate.getTime() === today.getTime(), 
+      orders: getOrdersOnDay(fullDate), 
+      fullDate 
+    })
   }
   return days
 })

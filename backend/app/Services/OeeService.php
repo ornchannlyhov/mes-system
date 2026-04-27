@@ -53,6 +53,7 @@ class OeeService
 
         // Initialize defaults if new
         if (!$record->exists) {
+            $record->organization_id = $wo->workCenter->organization_id ?? auth()->user()->organization_id ?? 1;
             $record->planned_time_minutes = 0;
             $record->actual_runtime_minutes = 0;
             $record->total_standard_minutes = 0;

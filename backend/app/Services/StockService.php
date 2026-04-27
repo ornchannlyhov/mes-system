@@ -20,6 +20,14 @@ class StockService
                 'lot_id' => $data['lot_id'] ?? null,
             ]);
 
+            // Set organization_id for new stock records
+            if (!$stock->exists) {
+                $orgId = $data['organization_id'] ?? auth()->user()->organization_id ?? null;
+                if ($orgId !== null) {
+                    $stock->organization_id = $orgId;
+                }
+            }
+
             switch ($data['type']) {
                 case 'set':
                     // If setting lower, we might consider it consumption/loss? 
@@ -47,7 +55,7 @@ class StockService
             // Create Stock History / Adjustment Record
             if (isset($data['reason'])) {
                 \App\Models\StockAdjustment::create([
-                    'organization_id' => $stock->organization_id ?? auth()->user()->organization_id ?? 1,
+                    'organization_id' => $stock->organization_id ?? auth()->user()->organization_id ?? null,
                     'product_id' => $stock->product_id,
                     'location_id' => $stock->location_id,
                     'lot_id' => $stock->lot_id,

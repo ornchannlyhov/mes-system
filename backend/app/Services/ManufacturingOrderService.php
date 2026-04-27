@@ -291,6 +291,10 @@ class ManufacturingOrderService
                     'finished_at' => now(),
                 ]);
 
+            // Calculate labor and overhead costs from BOM operations if work orders weren't processed normally
+            // (i.e., when completing MO directly without going through WO start/pause/finish flow)
+            $this->calculateLaborOverheadCosts($mo, $qtyProduced);
+
             // Release Reservations and Consume Stock
             $mo->load('consumptions');
 
@@ -430,6 +434,68 @@ class ManufacturingOrderService
             return $mo;
         });
     }
+
+    /**
+     * Calculate labor and overhead costs from BOM operations
+     * Used when completing MO directly without processing WOs through normal flow
+     */
+    protected function calculateLaborOverheadCosts(ManufacturingOrder $mo, float $qtyProduced): void
+    {
+        // Load BOM operations with their work centers
+        $mo->load(['bom.operations.workCenter']);
+
+        if (!$mo->bom || !$mo->bom->operations) {
+            return;
+        }
+
+        foreach ($mo->bom->operations as $operation) {
+            $workCenter = $operation->workCenter;
+            if (!$workCenter) {
+                continue;
+            }
+
+            // Calculate expected duration for this MO quantity
+            // Duration = (operation duration * MO qty) / BOM qty produced
+            $bomQty = $mo->bom->qty_produced ?: 1;
+            $durationMinutes = ($operation->duration_minutes * $qtyProduced) / $bomQty;
+            $hours = $durationMinutes / 60;
+
+            // Calculate Labor Cost
+            $costPerHour = $workCenter->cost_per_hour ?? 0;
+            $totalLaborCost = $hours * $costPerHour;
+
+            if ($totalLaborCost > 0) {
+                \App\Models\CostEntry::create([
+                    'organization_id' => $mo->organization_id,
+                    'manufacturing_order_id' => $mo->id,
+                    'cost_type' => 'labor',
+                    'quantity' => $hours,
+                    'unit_cost' => $costPerHour,
+                    'total_cost' => $totalLaborCost,
+                    'notes' => 'Labor: ' . number_format($hours, 2) . ' hrs @ $' . $costPerHour . '/hr (Operation: ' . $operation->name . ')',
+                    'created_at' => now(),
+                ]);
+            }
+
+            // Calculate Overhead Cost
+            $overheadRate = $workCenter->overhead_per_hour ?? 0;
+            $totalOverheadCost = $hours * $overheadRate;
+
+            if ($totalOverheadCost > 0) {
+                \App\Models\CostEntry::create([
+                    'organization_id' => $mo->organization_id,
+                    'manufacturing_order_id' => $mo->id,
+                    'cost_type' => 'overhead',
+                    'quantity' => $hours,
+                    'unit_cost' => $overheadRate,
+                    'total_cost' => $totalOverheadCost,
+                    'notes' => 'Overhead: ' . number_format($hours, 2) . ' hrs @ $' . $overheadRate . '/hr (Operation: ' . $operation->name . ')',
+                    'created_at' => now(),
+                ]);
+            }
+        }
+    }
+
     /**
      * Reset manufacturing order to draft
      */

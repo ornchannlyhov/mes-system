@@ -15,8 +15,8 @@ export const useInventoryStore = defineStore('inventory', {
             const { $api } = useApi()
             const now = Date.now()
 
-            // Cache valid for 60 seconds
-            if (!force && this.stocks.length > 0 && (now - this.lastFetchConfigs.stocks) < 60000) {
+            // Cache valid for 10 seconds
+            if (!force && this.stocks.length > 0 && (now - this.lastFetchConfigs.stocks) < 10000) {
                 return
             }
 
@@ -34,8 +34,8 @@ export const useInventoryStore = defineStore('inventory', {
             const { $api } = useApi()
             const now = Date.now()
 
-            // Cache valid for 60 seconds
-            if (!force && this.adjustments.length > 0 && (now - this.lastFetchConfigs.adjustments) < 60000) {
+            // Cache valid for 10 seconds
+            if (!force && this.adjustments.length > 0 && (now - this.lastFetchConfigs.adjustments) < 10000) {
                 return
             }
 

@@ -15,8 +15,8 @@ export const useExecutionStore = defineStore('execution', {
             const { $api } = useApi()
             const now = Date.now()
 
-            // Cache valid for 60 seconds
-            if (!force && this.manufacturingOrders.length > 0 && (now - this.lastFetchConfigs.manufacturingOrders) < 60000) {
+            // Cache valid for 10 seconds
+            if (!force && this.manufacturingOrders.length > 0 && (now - this.lastFetchConfigs.manufacturingOrders) < 10000) {
                 return
             }
 
@@ -34,8 +34,8 @@ export const useExecutionStore = defineStore('execution', {
             const { $api } = useApi()
             const now = Date.now()
 
-            // Cache valid for 60 seconds
-            if (!force && this.workOrders.length > 0 && (now - this.lastFetchConfigs.workOrders) < 60000) {
+            // Cache valid for 10 seconds
+            if (!force && this.workOrders.length > 0 && (now - this.lastFetchConfigs.workOrders) < 10000) {
                 return
             }
 
