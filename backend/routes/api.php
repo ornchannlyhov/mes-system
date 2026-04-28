@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\ForgotPasswordController;
+use App\Http\Controllers\Api\Auth\SuperadminAuthController;
+use App\Http\Controllers\Api\Superadmin\SuperadminController;
 use App\Http\Controllers\Api\Engineering\ProductController;
 use App\Http\Controllers\Api\Engineering\BomController;
 use App\Http\Controllers\Api\Engineering\WorkCenterController;
@@ -43,8 +45,37 @@ Route::middleware(['api.key'])->group(function () {
     Route::post('/auth/reset-password', [ForgotPasswordController::class, 'resetPassword']);
 });
 
-// Protected routes (API key + Bearer token + rate limiting)
-Route::middleware(['api.key', 'auth:sanctum', 'throttle:api'])->group(function () {
+// Superadmin public login
+Route::middleware(['api.key'])->post('/sysadmin/auth/login', [SuperadminAuthController::class, 'login']);
+
+// Superadmin protected routes (API key + Bearer token + superadmin check)
+Route::middleware(['api.key', 'auth:sanctum', 'superadmin'])->prefix('sysadmin')->group(function () {
+    // Auth
+    Route::post('/auth/logout', [SuperadminAuthController::class, 'logout']);
+    Route::get('/auth/user', [SuperadminAuthController::class, 'user']);
+
+    // Dashboard & Stats
+    Route::get('/dashboard', [SuperadminController::class, 'dashboard']);
+
+    // User Approvals
+    Route::get('/pending-users', [SuperadminController::class, 'pendingUsers']);
+    Route::post('/users/{userId}/approve', [SuperadminController::class, 'approveUser']);
+    Route::post('/users/{userId}/reject', [SuperadminController::class, 'rejectUser']);
+
+    // Organization Management
+    Route::get('/organizations', [SuperadminController::class, 'organizations']);
+    Route::get('/organizations/{organization}', [SuperadminController::class, 'showOrganization']);
+    Route::post('/organizations/{organization}/activate', [SuperadminController::class, 'activateOrganization']);
+    Route::post('/organizations/{organization}/deactivate', [SuperadminController::class, 'deactivateOrganization']);
+    Route::put('/organizations/{organization}/user-limit', [SuperadminController::class, 'updateUserLimit']);
+
+    // Cross-organization User Management
+    Route::get('/users', [SuperadminController::class, 'allUsers']);
+    Route::get('/users/{userId}', [SuperadminController::class, 'showUser']);
+});
+
+// Organization user protected routes (API key + Bearer token + prevent superadmin)
+Route::middleware(['api.key', 'auth:sanctum', 'throttle:api', 'prevent.superadmin'])->group(function () {
     // Auth
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::post('/auth/refresh', [AuthController::class, 'refreshToken']);

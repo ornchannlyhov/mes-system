@@ -31,6 +31,7 @@ class UpdateBomRequest extends FormRequest
             'operations.*.sequence' => 'nullable|integer',
             'operations.*.needs_quality_check' => 'boolean',
             'operations.*.instruction_file_url' => 'nullable|string',
+            'operations.*.produces_bom_line_id' => 'nullable|integer',
             'operations.*.quality_checks' => 'nullable|array',
             'operations.*.quality_checks.*.id' => 'nullable|integer',
             'operations.*.quality_checks.*.type' => 'required|in:pass_fail,measurement',

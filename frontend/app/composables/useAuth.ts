@@ -70,13 +70,14 @@ export function useAuth() {
 
     // Verify Email
     async function verifyEmail(email: string, code: string) {
-        const response = await $fetch<{ user: User; token: string; message: string }>('auth/verify-email', {
+        const response = await $fetch<{ user: User; token: string; message: string; requires_approval?: boolean }>('auth/verify-email', {
             baseURL,
             method: 'POST',
             body: { email, code },
             headers: getHeaders(),
         })
 
+        // Only set auth if token is returned (user is approved)
         if (response?.token) {
             token.value = response.token
             tokenCookie.value = response.token

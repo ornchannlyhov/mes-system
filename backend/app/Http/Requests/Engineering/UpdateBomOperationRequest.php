@@ -20,6 +20,7 @@ class UpdateBomOperationRequest extends FormRequest
             'sequence' => 'nullable|integer|min:0',
             'needs_quality_check' => 'boolean',
             'instruction_file_url' => 'nullable|string',
+            'produces_bom_line_id' => 'nullable|exists:bom_lines,id',
         ];
     }
 }

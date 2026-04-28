@@ -22,13 +22,23 @@ class RolePermissionSeeder extends Seeder
         }
 
         // 2. Create Roles
+        // System role (no organization)
+        $superadminRole = \App\Models\Role::firstOrCreate(
+            ['name' => 'superadmin'],
+            ['label' => 'System Administrator', 'is_system' => true, 'organization_id' => null]
+        );
+
+        // Organization roles
         $adminRole = \App\Models\Role::firstOrCreate(['name' => 'admin'], ['label' => 'Administrator']);
         $managerRole = \App\Models\Role::firstOrCreate(['name' => 'manager'], ['label' => 'Manager']);
         $operatorRole = \App\Models\Role::firstOrCreate(['name' => 'operator'], ['label' => 'Operator']);
 
         // 3. Assign Permissions
 
-        // Admin: All permissions
+        // Superadmin: All permissions (system-wide access)
+        $superadminRole->permissions()->sync(\App\Models\Permission::all());
+
+        // Admin: All permissions (organization-only)
         $adminRole->permissions()->sync(\App\Models\Permission::all());
 
         // Manager: All except some admin functions

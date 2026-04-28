@@ -279,9 +279,15 @@
                     <span class="text-xs text-gray-700">Requires QA</span>
                   </label>
                 </div>
+                <div class="border-l pl-4 flex-1">
+                  <select v-model="op.produces_bom_line_id" class="input text-sm">
+                    <option :value="null">Produces: {{ form.product_id ? finishedGoods.find(p => p.id === form.product_id)?.name || 'Finished Product' : 'Finished Product' }}</option>
+                    <option v-for="line in form.lines" :key="line.id" :value="line.id">
+                      Produces: {{ products.find(p => p.id === line.product_id)?.name || 'Unknown' }} (Qty: {{ line.quantity }})
+                    </option>
+                  </select>
+                </div>
               </div>
-              
-
             </div>
           </div>
         </div>
@@ -315,7 +321,7 @@
 import type { Bom, BomLine, Operation } from '~/types/models'
 
 interface BomLineForm {
-  id?: number
+  id?: number | string
   product_id: number | null
   quantity: number
   sequence: number
@@ -329,6 +335,7 @@ interface OperationForm {
   sequence: number
   needs_quality_check: boolean
   instruction_file_url?: string
+  produces_bom_line_id?: number | string | null
 }
 
 const { $api } = useApi()
@@ -429,6 +436,7 @@ const form = ref({
 
 function addComponent() {
   form.value.lines.push({
+    id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     product_id: null,
     quantity: 1,
     sequence: form.value.lines.length,
@@ -447,6 +455,7 @@ function addOperation() {
     sequence: form.value.operations.length,
     needs_quality_check: false,
     instruction_file_url: '',
+    produces_bom_line_id: null,
   })
 }
 
@@ -473,6 +482,7 @@ function duplicateBom(bom: Bom & { lines?: BomLine[], operations?: Operation[] }
       sequence: o.sequence,
       needs_quality_check: o.needs_quality_check,
       instruction_file_url: (o as any).instruction_file_url || '',
+      produces_bom_line_id: o.produces_bom_line_id,
     })),
   }
   showModal.value = true
@@ -500,6 +510,7 @@ function openModal(bom?: Bom & { lines?: BomLine[], operations?: Operation[] }) 
         sequence: o.sequence,
         needs_quality_check: o.needs_quality_check,
         instruction_file_url: (o as any).instruction_file_url || '',
+        produces_bom_line_id: o.produces_bom_line_id,
       })),
     }
   } else {

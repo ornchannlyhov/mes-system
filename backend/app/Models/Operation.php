@@ -19,6 +19,7 @@ class Operation extends Model
         'duration_minutes',
         'needs_quality_check',
         'instruction_file_url',
+        'produces_bom_line_id',
     ];
 
     protected $casts = [
@@ -39,6 +40,11 @@ class Operation extends Model
     public function workOrders(): HasMany
     {
         return $this->hasMany(WorkOrder::class);
+    }
+
+    public function producesBomLine(): BelongsTo
+    {
+        return $this->belongsTo(BomLine::class, 'produces_bom_line_id');
     }
 
 }

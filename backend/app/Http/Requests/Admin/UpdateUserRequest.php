@@ -27,6 +27,7 @@ class UpdateUserRequest extends FormRequest
             'role_id' => 'required|exists:roles,id',
             'password' => 'nullable|string|min:8|confirmed',
             'avatar' => 'nullable|file|image|max:10240',
+            'remove_avatar' => 'nullable|boolean',
         ];
     }
 }

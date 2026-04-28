@@ -41,9 +41,21 @@ class AuthTest extends TestCase
 
     public function test_user_can_login()
     {
-        $user = User::factory()->create([
+        // Create organization and role directly (no factories)
+        $organization = \App\Models\Organization::create(['name' => 'Test Org', 'is_active' => true]);
+        $role = \App\Models\Role::create([
+            'name' => 'admin',
+            'label' => 'Administrator',
+            'organization_id' => $organization->id,
+        ]);
+        $user = User::create([
+            'name' => 'Test User',
             'email' => 'login@example.com',
             'password' => bcrypt('password123'),
+            'is_approved' => true,
+            'is_active' => true,
+            'organization_id' => $organization->id,
+            'role_id' => $role->id,
         ]);
 
         $response = $this->withHeaders($this->headers)->postJson('/api/auth/login', [
@@ -57,7 +69,8 @@ class AuthTest extends TestCase
 
     public function test_login_with_invalid_credentials_fails()
     {
-        User::factory()->create([
+        User::create([
+            'name' => 'Test User',
             'email' => 'user@example.com',
             'password' => bcrypt('correct_password'),
         ]);
@@ -72,7 +85,11 @@ class AuthTest extends TestCase
 
     public function test_authenticated_user_can_get_profile()
     {
-        $user = User::factory()->create();
+        $user = User::create([
+            'name' => 'Test User',
+            'email' => 'profile@example.com',
+            'password' => bcrypt('password'),
+        ]);
         $token = $user->createToken('test')->plainTextToken;
         $this->headers['Authorization'] = 'Bearer ' . $token;
 
@@ -84,7 +101,11 @@ class AuthTest extends TestCase
 
     public function test_authenticated_user_can_logout()
     {
-        $user = User::factory()->create();
+        $user = User::create([
+            'name' => 'Test User',
+            'email' => 'logout@example.com',
+            'password' => bcrypt('password'),
+        ]);
         $token = $user->createToken('test')->plainTextToken;
         $this->headers['Authorization'] = 'Bearer ' . $token;
 
@@ -116,8 +137,16 @@ class AuthTest extends TestCase
 
     public function test_admin_can_update_user()
     {
-        $admin = User::factory()->create();
-        $userToUpdate = User::factory()->create(['name' => 'Old Name']);
+        $admin = User::create([
+            'name' => 'Admin',
+            'email' => 'admin@example.com',
+            'password' => bcrypt('password'),
+        ]);
+        $userToUpdate = User::create([
+            'name' => 'Old Name',
+            'email' => 'old@example.com',
+            'password' => bcrypt('password'),
+        ]);
         $role = \App\Models\Role::firstOrCreate(['name' => 'user'], ['label' => 'User']);
 
         $token = $admin->createToken('test')->plainTextToken;

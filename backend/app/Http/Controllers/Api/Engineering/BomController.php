@@ -26,8 +26,10 @@ class BomController extends BaseController
                 'product:id,name,code,image_url',
                 'lines:id,bom_id,product_id,quantity,sequence',
                 'lines.product:id,name,code',
-                'operations:id,bom_id,name,work_center_id,duration_minutes,sequence',
-                'operations.workCenter:id,name,code'
+                'operations:id,bom_id,name,work_center_id,duration_minutes,sequence,produces_bom_line_id',
+                'operations.workCenter:id,name,code',
+                'operations.producesBomLine:id,product_id,quantity',
+                'operations.producesBomLine.product:id,name,code,uom'
             ])
             ->applyStandardFilters(
                 $request,
@@ -63,7 +65,12 @@ class BomController extends BaseController
     public function show(Bom $bom)
     {
         return $this->success(
-            $bom->load(['product', 'lines.product', 'operations.workCenter'])
+            $bom->load([
+                'product',
+                'lines.product',
+                'operations.workCenter',
+                'operations.producesBomLine.product'
+            ])
         );
     }
 
@@ -126,6 +133,7 @@ class BomController extends BaseController
             'sequence' => $validated['sequence'] ?? $bom->operations()->count(),
             'needs_quality_check' => $validated['needs_quality_check'] ?? false,
             'instruction_file_url' => $validated['instruction_file_url'] ?? null,
+            'produces_bom_line_id' => $validated['produces_bom_line_id'] ?? null,
         ]);
 
         return $this->success($operation->load('workCenter'), [], 201);

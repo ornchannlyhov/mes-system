@@ -5,16 +5,20 @@
       
       <div class="flex justify-end gap-3 pt-4">
         <button 
-          type="button" 
-          class="btn-ghost" 
+          type="button"
+          class="btn-ghost"
           @click="isOpen = false"
         >
           {{ cancelText }}
         </button>
         <button 
-          type="button" 
-          :class="confirmButtonClass" 
+          type="button"
+          :class="[
+            'btn-primary',
+            variant === 'danger' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : ''
+          ]"
           @click="handleConfirm"
+          :disabled="loading"
         >
           <Icon v-if="loading" name="heroicons:arrow-path" class="w-4 h-4 animate-spin" />
           {{ confirmText }}
@@ -49,17 +53,6 @@ const emit = defineEmits<{
 const isOpen = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value),
-})
-
-const confirmButtonClass = computed(() => {
-  switch (props.variant) {
-    case 'danger':
-      return 'btn-primary bg-red-600 hover:bg-red-700 focus:ring-red-500'
-    case 'warning':
-      return 'btn-primary bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500'
-    default:
-      return 'btn-primary'
-  }
 })
 
 function handleConfirm() {

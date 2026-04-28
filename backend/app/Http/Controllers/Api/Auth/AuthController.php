@@ -31,11 +31,12 @@ class AuthController extends Controller
         \App\Models\RegistrationAttempt::where('expires_at', '<', now())->delete();
 
         // Store registration attempt (deferred creation)
+        // Store raw password - User model will hash it when user is created
         \App\Models\RegistrationAttempt::updateOrCreate(
             ['email' => $validated['email']],
             [
                 'name' => $validated['name'],
-                'password' => Hash::make($validated['password']),
+                'password' => $validated['password'], 
                 'otp' => $otp,
                 'expires_at' => now()->addMinutes(5),
             ]
@@ -55,7 +56,10 @@ class AuthController extends Controller
     {
         $validated = $request->validated();
 
-        $user = User::where('email', $validated['email'])->first();
+        $user = User::withoutGlobalScope('organization')
+            ->where('email', $validated['email'])
+            ->with(['role.permissions', 'organization'])
+            ->first();
 
         if (!$user || !Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
@@ -63,9 +67,24 @@ class AuthController extends Controller
             ]);
         }
 
-        if (!$user->is_active) {
+        // Superadmins must use the separate superadmin login
+        if ($user->isSuperadmin()) {
             throw ValidationException::withMessages([
-                'email' => ['This account has been deactivated.'],
+                'email' => ['Superadmin must use the system admin login portal.'],
+            ]);
+        }
+
+        // Check login eligibility using the canLogin method
+        $loginCheck = $user->canLogin();
+        if (!$loginCheck['can_login']) {
+            $messages = [
+                'pending_approval' => 'Your account is pending approval. You will be notified when approved.',
+                'account_deactivated' => 'This account has been deactivated.',
+                'organization_suspended' => 'Organization access has been suspended. Please contact support.',
+            ];
+
+            throw ValidationException::withMessages([
+                'email' => [$messages[$loginCheck['reason']] ?? 'Account access restricted.'],
             ]);
         }
 
@@ -121,85 +140,31 @@ class AuthController extends Controller
 
         // Transaction to ensure atomicity
         $data = \Illuminate\Support\Facades\DB::transaction(function () use ($attempt) {
-            // 1. Create Organization
-            $organization = \App\Models\Organization::create([
-                'name' => $attempt->name . "'s Organization",
-            ]);
-
-            // 2. Create Default Roles for the Organization
-            $adminRole = \App\Models\Role::create([
-                'name' => 'admin',
-                'label' => 'Administrator',
-                'organization_id' => $organization->id,
-            ]);
-
-            $managerRole = \App\Models\Role::create([
-                'name' => 'manager',
-                'label' => 'Manager',
-                'organization_id' => $organization->id,
-            ]);
-
-            $operatorRole = \App\Models\Role::create([
-                'name' => 'operator',
-                'label' => 'Operator',
-                'organization_id' => $organization->id,
-            ]);
-
-            // 3. Assign Permissions
-            $allPermissions = \App\Models\Permission::all();
-
-            // Admin: All permissions
-            $adminRole->permissions()->sync($allPermissions->pluck('id'));
-
-            // Manager: All except some admin functions
-            $managerPermissions = \App\Models\Permission::where('name', 'not like', 'roles:%')
-                ->where('name', 'not like', 'settings:%')
-                ->where('name', 'not like', 'users:%')
-                ->get();
-            $managerRole->permissions()->sync($managerPermissions->pluck('id'));
-
-            // Operator: Execution, View, and simple operations
-            $operatorPermissions = \App\Models\Permission::where(function ($query) {
-                $query->where('name', 'like', '%:read') // View everything
-                    ->orWhereIn('name', [
-                        'manufacturing:execute',
-                        'quality:write',
-                        'inventory:transfer',
-                        'inventory:adjust',
-                        'maintenance:read'
-                    ]);
-            })->get();
-            $operatorRole->permissions()->sync($operatorPermissions->pluck('id'));
-
-            // 4. Create User
+            // 1. Create User (unapproved, pending superadmin approval)
             $user = User::create([
                 'name' => $attempt->name,
                 'email' => $attempt->email,
-                'password' => $attempt->password, // Already hashed in register
-                'role_id' => $adminRole->id,
-                'organization_id' => $organization->id,
+                'password' => $attempt->password, 
                 'email_verified_at' => now(),
                 'is_active' => true,
+                'is_approved' => false, 
+                'organization_id' => null,  
+                'role_id' => null, 
             ]);
 
-            $organization->update(['owner_id' => $user->id]);
-
-            // 5. Delete Attempt
+            // 2. Delete Attempt
             $attempt->delete();
 
-            // 6. Generate Token
-            $token = $user->createToken('auth_token')->plainTextToken;
-
+            // Note: No token generated - user must wait for superadmin approval
             return [
-                'user' => $user->load('role.permissions'),
-                'token' => $token,
+                'user' => $user,
+                'requires_approval' => true,
             ];
         });
 
         return response()->json([
-            'message' => 'Email verified and account created successfully.',
-            'user' => $data['user'],
-            'token' => $data['token'],
+            'message' => 'Email verified successfully. Your account is pending approval. You will receive an email when your account is activated.',
+            'requires_approval' => true,
         ]);
     }
 
@@ -249,8 +214,8 @@ class AuthController extends Controller
         $query = User::with('role')
             ->applyStandardFilters(
                 $request,
-                ['name', 'email'], // Searchable
-                ['role_id', 'is_active'] // Filterable
+                ['name', 'email'], 
+                ['role_id', 'is_active'] 
             );
 
 
@@ -293,6 +258,9 @@ class AuthController extends Controller
         if ($request->hasFile('avatar')) {
             $path = $request->file('avatar')->store('avatars', 'public');
             $userData['avatar_url'] = '/storage/' . $path;
+        } elseif (isset($validated['remove_avatar']) && $validated['remove_avatar']) {
+            // Remove avatar by setting to null
+            $userData['avatar_url'] = null;
         }
 
         $user->update($userData);
@@ -307,10 +275,13 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => $validated['password'], // Already hashed in StoreUserRequest or here?
+            'password' => $validated['password'], 
             'role_id' => $validated['role_id'],
-            'organization_id' => $request->user()->organization_id, // Strictly Org ID from current user
+            'organization_id' => $request->user()->organization_id, 
             'is_active' => true,
+            'is_approved' => true, 
+            'approved_at' => now(),
+            'approved_by' => $request->user()->id,
         ]);
 
         return response()->json($user->load('role'), 201);

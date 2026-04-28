@@ -34,17 +34,22 @@ class WorkOrderController extends BaseController
             'qa_comments',
             'duration_expected',
             'duration_actual',
+            'quantity_expected',
+            'quantity_produced',
             'started_at',
             'finished_at',
             'created_at',
             'updated_at'
         ])
             ->with([
-                'manufacturingOrder:id,name,product_id',
-                'manufacturingOrder.product:id,name,code',
+                'manufacturingOrder:id,name,product_id,qty_to_produce',
+                'manufacturingOrder.product:id,name,code,uom',
+                'manufacturingOrder.bom:id,product_id,qty_produced',
                 'workCenter:id,name,code',
                 'assignedUser:id,name',
-                'operation:id,name,needs_quality_check,instruction_file_url',
+                'operation:id,name,needs_quality_check,instruction_file_url,produces_bom_line_id',
+                'operation.producesBomLine:id,product_id,quantity',
+                'operation.producesBomLine.product:id,name,code,uom',
                 'qaUser:id,name'
             ])
             ->applyStandardFilters(
