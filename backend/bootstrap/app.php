@@ -2,6 +2,8 @@
 
 use App\Http\Middleware\ApiKeyMiddleware;
 use App\Http\Middleware\DebounceMiddleware;
+use App\Http\Middleware\SuperadminMiddleware;
+use App\Http\Middleware\PreventSuperadminOrgAccess;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'api.key' => ApiKeyMiddleware::class,
             'debounce' => DebounceMiddleware::class,
+            'superadmin' => SuperadminMiddleware::class,
+            'prevent.superadmin' => PreventSuperadminOrgAccess::class,
         ]);
 
         // API rate limiting

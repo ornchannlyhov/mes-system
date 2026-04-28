@@ -7,7 +7,11 @@ export interface User {
     role_id: number
     organization_id: number
     is_active: boolean
+    is_approved: boolean
+    approved_at?: string
+    approved_by?: number
     role?: Role
+    organization?: Organization
     created_at: string
 }
 
@@ -22,6 +26,21 @@ export interface Role {
     name: string
     label: string
     permissions?: Permission[]
+}
+
+// Organization
+export interface Organization {
+    id: number
+    name: string
+    owner_id: number
+    is_active: boolean
+    activated_at?: string
+    activated_by?: number
+    user_limit: number
+    owner?: User
+    members_count?: number
+    members?: User[]
+    created_at?: string
 }
 
 // Product
@@ -142,6 +161,8 @@ export interface WorkOrder {
     status: 'pending' | 'ready' | 'in_progress' | 'paused' | 'done' | 'blocked'
     duration_expected: number
     duration_actual: number
+    quantity_expected: number
+    quantity_produced: number
     started_at?: string
     finished_at?: string
     qa_status?: 'pending' | 'pass' | 'fail'
@@ -178,6 +199,8 @@ export interface Operation {
     needs_quality_check: boolean
     instructions?: string
     instruction_file_url?: string
+    produces_bom_line_id?: number
+    producesBomLine?: BomLine
 
 }
 
@@ -303,4 +326,12 @@ export interface StockAdjustment {
     notes?: string
     user?: { name: string }
     created_at: string
+}
+
+// Superadmin Dashboard
+export interface SuperadminDashboardStats {
+    pending_approvals_count: number
+    active_organizations_count: number
+    inactive_organizations_count: number
+    total_users_count: number
 }

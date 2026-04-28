@@ -151,6 +151,7 @@
               <th>Operation</th>
               <th>Work Center</th>
               <th>Duration</th>
+              <th>Produces</th>
               <th>QA</th>
               <th>Instruction</th>
               <th class="w-20">Actions</th>
@@ -162,6 +163,14 @@
               <td class="font-medium">{{ op.name }}</td>
               <td>{{ op.work_center?.name || 'N/A' }}</td>
               <td>{{ op.duration_minutes }} min</td>
+              <td>
+                <span v-if="op.producesBomLine?.product" class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                  {{ op.producesBomLine.product.name }} ({{ op.producesBomLine.quantity }})
+                </span>
+                <span v-else class="text-xs bg-green-50 text-green-700 px-2 py-1 rounded">
+                  {{ bom?.product?.name || 'Finished Product' }}
+                </span>
+              </td>
               <td>
                 <span v-if="op.needs_quality_check" class="badge bg-yellow-100 text-yellow-800 text-xs">Required</span>
                 <span v-else class="text-gray-400 text-sm">-</span>
@@ -182,7 +191,7 @@
               </td>
             </tr>
             <tr v-if="operations.length === 0">
-              <td colspan="7" class="text-center text-gray-500 py-8">No operations defined yet</td>
+              <td colspan="8" class="text-center text-gray-500 py-8">No operations defined yet</td>
             </tr>
           </tbody>
         </table>
@@ -267,6 +276,20 @@
             <Icon v-if="uploading" name="svg-spinners:180-ring" class="w-5 h-5 text-primary-600" />
           </div>
           <p class="text-xs text-gray-500 mt-1">Upload PDF, Image, or Video instructions.</p>
+        </div>
+
+        <!-- Produces BOM Line -->
+        <div class="pt-2 border-t">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Produces Component</label>
+          <select v-model="operationForm.produces_bom_line_id" class="input">
+            <option :value="null">Finished Product ({{ bom?.product?.name || 'Main Product' }})</option>
+            <option v-for="line in lines" :key="line.id" :value="line.id">
+              {{ line.product?.name || 'Unknown' }} (Qty: {{ line.quantity }})
+            </option>
+          </select>
+          <p class="text-xs text-gray-500 mt-1">
+            Select which component this operation produces, or leave as "Finished Product" for final assembly
+          </p>
         </div>
 
         <!-- Requires Quality Check -->
@@ -370,7 +393,8 @@ const operationForm = ref({
   duration_minutes: 10,
   sequence: 0,
   needs_quality_check: false,
-  instruction_file_url: '' as string | null | undefined, // Added
+  instruction_file_url: '' as string | null | undefined,
+  produces_bom_line_id: null as number | null,
 })
 
 // Delete State
@@ -477,6 +501,7 @@ function openOperationModal(op?: Operation) {
       sequence: op.sequence,
       needs_quality_check: op.needs_quality_check,
       instruction_file_url: (op as any).instruction_file_url || '',
+      produces_bom_line_id: op.produces_bom_line_id || null,
     }
   } else {
     editingOperation.value = null
@@ -487,6 +512,7 @@ function openOperationModal(op?: Operation) {
       sequence: operations.value.length,
       needs_quality_check: false,
       instruction_file_url: '',
+      produces_bom_line_id: null,
     }
   }
 

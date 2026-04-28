@@ -53,12 +53,23 @@ class ManufacturingOrderService
         $operations = $mo->bom->operations()->orderBy('sequence')->get();
 
         foreach ($operations as $operation) {
+            // Calculate quantity expected based on what the operation produces
+            if ($operation->produces_bom_line_id) {
+                // This operation produces a component - use BOM line quantity
+                $bomLine = $operation->producesBomLine;
+                $quantityExpected = ($bomLine->quantity * $mo->qty_to_produce) / $mo->bom->qty_produced;
+            } else {
+                // Default: operation produces the finished product
+                $quantityExpected = $mo->qty_to_produce;
+            }
+
             $mo->workOrders()->create([
                 'operation_id' => $operation->id,
                 'work_center_id' => $operation->work_center_id,
                 'sequence' => $operation->sequence,
                 'status' => 'pending',
                 'duration_expected' => ($operation->duration_minutes * $mo->qty_to_produce) / $mo->bom->qty_produced,
+                'quantity_expected' => $quantityExpected,
             ]);
         }
 
@@ -163,11 +174,24 @@ class ManufacturingOrderService
                 }
 
                 // 2. Update Work Orders
-                $mo->load(['workOrders.operation', 'bom']);
+                $mo->load(['workOrders.operation.producesBomLine', 'bom']);
                 foreach ($mo->workOrders as $wo) {
                     if ($wo->operation) {
                         $newDuration = ($wo->operation->duration_minutes * $newQty) / $mo->bom->qty_produced;
-                        $wo->update(['duration_expected' => $newDuration]);
+
+                        // Calculate new quantity expected based on what the operation produces
+                        if ($wo->operation->produces_bom_line_id && $wo->operation->producesBomLine) {
+                            $bomLine = $wo->operation->producesBomLine;
+                            $newQuantity = ($bomLine->quantity * $newQty) / $mo->bom->qty_produced;
+                        } else {
+                            // Default: operation produces the finished product
+                            $newQuantity = $newQty;
+                        }
+
+                        $wo->update([
+                            'duration_expected' => $newDuration,
+                            'quantity_expected' => $newQuantity,
+                        ]);
                     }
                 }
             }

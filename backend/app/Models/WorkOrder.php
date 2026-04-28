@@ -21,6 +21,7 @@ class WorkOrder extends Model
         'status',
         'duration_expected',
         'duration_actual',
+        'quantity_expected',
         'quantity_produced',
         'started_at',
         'actual_start',
@@ -36,6 +37,7 @@ class WorkOrder extends Model
     protected $casts = [
         'duration_expected' => 'decimal:2',
         'duration_actual' => 'decimal:2',
+        'quantity_expected' => 'decimal:4',
         'quantity_produced' => 'decimal:4',
         'started_at' => 'datetime',
         'actual_start' => 'datetime',

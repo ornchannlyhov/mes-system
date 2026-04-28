@@ -13,8 +13,38 @@
         <p class="text-gray-500 mt-2">Sign in to your account to continue</p>
       </div>
 
-      <!-- Error -->
-      <div v-if="error" class="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm flex items-center gap-3">
+      <!-- Pending Approval Alert -->
+      <div v-if="errorType === 'pending_approval'" class="mb-6 p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl text-sm flex items-start gap-3">
+        <Icon name="heroicons:clock" class="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div>
+          <p class="font-medium">Account Pending Approval</p>
+          <p class="mt-1">Your account is pending approval from our system administrators. You will receive an email notification when your account is activated.</p>
+        </div>
+      </div>
+
+      <!-- Organization Suspended Alert -->
+      <div v-else-if="errorType === 'organization_suspended'" class="mb-6 p-4 bg-orange-50 border border-orange-200 text-orange-700 rounded-xl text-sm flex items-start gap-3">
+        <Icon name="heroicons:exclamation-triangle" class="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div>
+          <p class="font-medium">Organization Access Suspended</p>
+          <p class="mt-1">Your organization account has been suspended. Please contact support for assistance.</p>
+        </div>
+      </div>
+
+      <!-- Superadmin Redirect Alert -->
+      <div v-else-if="errorType === 'superadmin_redirect'" class="mb-6 p-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-sm flex items-start gap-3">
+        <Icon name="heroicons:information-circle" class="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div>
+          <p class="font-medium">System Admin Login Required</p>
+          <p class="mt-1">Superadmin accounts must use the system administration portal.</p>
+          <NuxtLink to="/sysadmin/login" class="mt-2 inline-block text-sm font-medium text-blue-700 hover:text-blue-800 underline">
+            Go to System Admin Login →
+          </NuxtLink>
+        </div>
+      </div>
+
+      <!-- Generic Error -->
+      <div v-else-if="error" class="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm flex items-center gap-3">
         <Icon name="heroicons:exclamation-circle" class="w-5 h-5 flex-shrink-0" />
         {{ error }}
       </div>
@@ -89,14 +119,25 @@ definePageMeta({
 
 const { login, isAuthenticated } = useAuth()
 const toast = useToast()
+const route = useRoute()
 
 const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
+const errorType = ref<string>('')
 const logoSrc = '/images/logo.png'
 const logoError = ref(false)
+
+// Check for error query params on mount
+onMounted(() => {
+  const queryError = route.query.error as string
+  if (queryError) {
+    errorType.value = queryError
+    error.value = ''
+  }
+})
 
 // Redirect if already logged in
 if (isAuthenticated.value) {
@@ -106,13 +147,29 @@ if (isAuthenticated.value) {
 async function handleLogin() {
   loading.value = true
   error.value = ''
+  errorType.value = ''
 
   try {
     await login(email.value, password.value)
     toast.success('Welcome back!')
     navigateTo('/')
   } catch (e: any) {
-    error.value = e.data?.message || 'Invalid credentials. Please try again.'
+    const message = e.data?.message || 'Invalid credentials. Please try again.'
+    
+    // Categorize errors for better UX
+    if (message.includes('Superadmin must use the system admin login')) {
+      errorType.value = 'superadmin_redirect'
+      error.value = ''
+    } else if (message.includes('pending approval')) {
+      errorType.value = 'pending_approval'
+      error.value = ''
+    } else if (message.includes('suspended') || message.includes('deactivated')) {
+      errorType.value = 'organization_suspended'
+      error.value = ''
+    } else {
+      error.value = message
+      errorType.value = ''
+    }
   } finally {
     loading.value = false
   }

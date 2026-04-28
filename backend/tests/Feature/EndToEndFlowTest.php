@@ -21,7 +21,18 @@ class EndToEndFlowTest extends TestCase
 
     public function test_full_production_cycle()
     {
-        // 1. Auth: Register and Login
+        // 0. Create Superadmin for approval flow
+        $superadminRole = \App\Models\Role::firstOrCreate(['name' => 'superadmin'], ['label' => 'Superadmin']);
+        $superadmin = User::create([
+            'name' => 'Superadmin',
+            'email' => 'superadmin@test.com',
+            'password' => bcrypt('password123'),
+            'role_id' => $superadminRole->id,
+            'is_approved' => true,
+            'is_active' => true,
+        ]);
+
+        // 1. Auth: Register and Verify Email
         $userPayload = [
             'name' => 'Test Operator',
             'email' => 'operator@test.com',
@@ -44,13 +55,39 @@ class EndToEndFlowTest extends TestCase
         ];
 
         $verifyResp = $this->withHeaders($this->headers)->postJson('/api/auth/verify-email', $verifyPayload);
-        $verifyResp->assertStatus(200);
-        $token = $verifyResp->json('token');
+        $verifyResp->assertStatus(200)
+            ->assertJson(['requires_approval' => true]);
 
-        $this->headers['Authorization'] = 'Bearer ' . $token;
+        // 2. Superadmin approves the user
+        $pendingUser = \App\Models\User::withoutGlobalScope('organization')
+            ->where('email', 'operator@test.com')
+            ->first();
+        $this->assertNotNull($pendingUser, 'Pending user not found');
 
-        // Verify token is set
+        $superadminToken = $superadmin->createToken('test')->plainTextToken;
+        $adminHeaders = $this->headers;
+        $adminHeaders['Authorization'] = 'Bearer ' . $superadminToken;
+
+        $approveResp = $this->withHeaders($adminHeaders)
+            ->postJson("/api/sysadmin/users/{$pendingUser->id}/approve");
+        $approveResp->assertStatus(200);
+
+        // 3. User can now login and get token
+        $loginResp = $this->withHeaders($this->headers)->postJson('/api/auth/login', [
+            'email' => 'operator@test.com',
+            'password' => 'password123',
+        ]);
+        $loginResp->assertStatus(200)
+            ->assertJsonStructure(['user', 'token']);
+
+        $token = $loginResp->json('token');
         $this->assertNotEmpty($token, 'Token should not be empty');
+
+        // Get the operator user and authenticate properly
+        $operatorUser = \App\Models\User::withoutGlobalScope('organization')
+            ->where('email', 'operator@test.com')
+            ->first();
+        $this->actingAs($operatorUser);
 
         // 2. Engineering: Create Components and Product
         $materialPayload = [

@@ -17,6 +17,9 @@ class User extends Authenticatable
         'email',
         'password',
         'is_active',
+        'is_approved',
+        'approved_at',
+        'approved_by',
         'role_id',
         'organization_id',
         'avatar_url',
@@ -33,6 +36,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'is_approved' => 'boolean',
+            'approved_at' => 'datetime',
         ];
     }
 
@@ -76,5 +81,44 @@ class User extends Authenticatable
     public function isOperator(): bool
     {
         return $this->role && $this->role->name === 'operator';
+    }
+
+    public function isSuperadmin(): bool
+    {
+        return $this->role && $this->role->name === 'superadmin';
+    }
+
+    public function belongsToOrganization(): bool
+    {
+        return $this->organization_id !== null;
+    }
+
+    public function canLogin(): array
+    {
+        // Superadmin can always login
+        if ($this->isSuperadmin()) {
+            return ['can_login' => true];
+        }
+
+        // Organization users need approval and active organization
+        if (!$this->is_approved) {
+            return ['can_login' => false, 'reason' => 'pending_approval'];
+        }
+
+        if (!$this->is_active) {
+            return ['can_login' => false, 'reason' => 'account_deactivated'];
+        }
+
+        if (!$this->organization || !$this->organization->is_active) {
+            return ['can_login' => false, 'reason' => 'organization_suspended'];
+        }
+
+        return ['can_login' => true];
+    }
+
+    // Approval relationship
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

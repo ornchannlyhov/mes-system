@@ -5,10 +5,16 @@
         <h1 class="page-title">User Management</h1>
         <p class="text-gray-500 mt-1 hidden sm:block">Manage system users and their roles</p>
       </div>
-      <button class="btn-primary" @click="createUser">
-        <Icon name="heroicons:plus" class="w-5 h-5" />
-        Create User
-      </button>
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex items-center gap-2 text-sm text-gray-600">
+          <Icon name="heroicons:users" class="w-4 h-4" />
+          <span>{{ users.length }}/{{ userLimit }} Members</span>
+        </div>
+        <button class="btn-primary" @click="createUser">
+          <Icon name="heroicons:plus" class="w-5 h-5" />
+          Create User
+        </button>
+      </div>
     </div>
 
     <div class="card p-0 overflow-hidden">
@@ -25,17 +31,15 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in paginatedUsers" :key="user.id">
+          <tr v-for="user in paginatedUsers" :key="user.id" @click="viewUser(user)" class="cursor-pointer hover:bg-gray-50">
             <td>
                 <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
                     <img v-if="user.avatar_url" :src="getImageUrl(user.avatar_url)" class="w-full h-full object-cover" />
                     <span v-else class="text-xs font-semibold text-gray-500">{{ user.name.charAt(0).toUpperCase() }}</span>
                 </div>
             </td>
-            <td>
-                <button @click="viewUser(user)" class="font-medium text-gray-900 hover:text-primary-600 hover:underline text-left">
-                    {{ user.name }}
-                </button>
+            <td class="font-medium text-gray-900">
+                {{ user.name }}
             </td>
             <td class="text-gray-500">{{ user.email }}</td>
             <td>
@@ -46,7 +50,7 @@
                 {{ user.is_active ? 'Active' : 'Inactive' }}
               </span>
             </td>
-            <td>
+            <td @click.stop>
               <div class="flex items-center gap-2">
                 <UiIconButton
                   @click="viewUser(user)"
@@ -110,10 +114,21 @@
                     <img v-if="previewUrl || (isEditing && form.avatar_url)" :src="previewUrl || getImageUrl(form.avatar_url)" class="w-full h-full object-cover" />
                     <span v-else class="text-2xl font-semibold text-gray-500">{{ form.name ? form.name.charAt(0).toUpperCase() : '?' }}</span>
                 </div>
-                <label class="absolute bottom-0 right-0 p-1.5 bg-white rounded-full border shadow-sm cursor-pointer hover:bg-gray-50 text-gray-500 hover:text-primary-600 transition-colors">
-                    <Icon name="heroicons:camera" class="w-4 h-4" />
-                    <input type="file" class="hidden" accept="image/*" @change="handleFileChange" />
-                </label>
+                <div class="absolute bottom-0 right-0 flex gap-1">
+                    <label class="p-1.5 bg-white rounded-full border shadow-sm cursor-pointer hover:bg-gray-50 text-gray-500 hover:text-primary-600 transition-colors">
+                        <Icon name="heroicons:camera" class="w-4 h-4" />
+                        <input type="file" class="hidden" accept="image/*" @change="handleFileChange" />
+                    </label>
+                    <button 
+                        v-if="isEditing && (form.avatar_url || previewUrl)" 
+                        type="button"
+                        @click="removeAvatar" 
+                        class="p-1.5 bg-white rounded-full border shadow-sm cursor-pointer hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+                        tooltip="Remove Profile Picture"
+                    >
+                        <Icon name="heroicons:x-mark" class="w-4 h-4" />
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -287,9 +302,11 @@ const { $api } = useApi()
 const toast = useToast()
 const { getImageUrl, formatDate } = useUtils()
 const adminStore = useAdminStore()
+const { user } = useAuth()
 
 const users = computed(() => adminStore.users as User[])
 const roles = computed(() => adminStore.roles as Role[])
+const userLimit = computed(() => user.value?.organization?.user_limit || 3)
 
 const showModal = ref(false)
 const showDetailModal = ref(false)
@@ -317,7 +334,8 @@ const form = ref({
     password: '',
     role_id: null as number | null,
     avatar_url: '',
-    avatar: null as File | null
+    avatar: null as File | null,
+    remove_avatar: false
 })
 const showPassword = ref(false)
 const previewUrl = ref('')
@@ -350,7 +368,7 @@ async function fetchData(force = false) {
 
 function createUser() {
     selectedUser.value = null
-    form.value = { name: '', email: '', password: '', role_id: null, avatar_url: '', avatar: null }
+    form.value = { name: '', email: '', password: '', role_id: null, avatar_url: '', avatar: null, remove_avatar: false }
     previewUrl.value = ''
     showModal.value = true
 }
@@ -368,7 +386,8 @@ function editUser(user: User) {
       password: '', // Don't show password
       role_id: user.role_id || (user.role?.id) || null,
       avatar_url: user.avatar_url || '',
-      avatar: null
+      avatar: null,
+      remove_avatar: false
   }
   previewUrl.value = ''
   showModal.value = true
@@ -385,8 +404,16 @@ function handleFileChange(event: Event) {
     if (target.files && target.files[0]) {
         const file = target.files[0]
         form.value.avatar = file
+        form.value.remove_avatar = false
         previewUrl.value = URL.createObjectURL(file)
     }
+}
+
+function removeAvatar() {
+    form.value.avatar_url = ''
+    form.value.avatar = null
+    form.value.remove_avatar = true
+    previewUrl.value = ''
 }
 
 function confirmDelete(user: User) {
@@ -419,6 +446,7 @@ async function save() {
   if (form.value.role_id) formData.append('role_id', String(form.value.role_id))
   if (form.value.password) formData.append('password', form.value.password)
   if (form.value.avatar) formData.append('avatar', form.value.avatar)
+  if (form.value.remove_avatar) formData.append('remove_avatar', '1')
   
   try {
     if (isEditing.value && selectedUser.value) {

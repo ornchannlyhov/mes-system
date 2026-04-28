@@ -206,6 +206,20 @@
               <span>{{ wo.work_center?.name || 'N/A' }}</span>
             </div>
 
+            <!-- Quantity to Produce -->
+            <div class="flex items-center gap-2 text-sm text-gray-600 mb-2">
+              <Icon name="heroicons:clipboard-document-list" class="w-4 h-4 text-gray-400" />
+              <span>
+                Qty: {{ wo.quantity_expected || 0 }}
+                <span v-if="wo.operation?.producesBomLine?.product">
+                  {{ wo.operation.producesBomLine.product.uom || 'units' }} of {{ wo.operation.producesBomLine.product.name }}
+                </span>
+                <span v-else>
+                  {{ selectedMo?.product?.uom || 'units' }}
+                </span>
+              </span>
+            </div>
+
             <!-- QA Required Badge -->
             <div v-if="wo.operation?.needs_quality_check" class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2 text-sm">
@@ -276,16 +290,19 @@
             </div>
 
             <div class="flex gap-2 pt-3 border-t">
-              <UiIconButton
+              <a
                 v-if="wo.operation?.instruction_file_url"
-                tag="a"
                 :href="getImageUrl(wo.operation.instruction_file_url)"
                 target="_blank"
-                icon="heroicons:document-text"
-                tooltip="View Instructions"
-                class="flex-none border border-primary-100"
-                color="text-primary-600 hover:text-primary-800"
-              />
+                class="flex-none"
+              >
+                <UiIconButton
+                  icon="heroicons:document-text"
+                  tooltip="View Instructions"
+                  class="border border-primary-100"
+                  color="text-primary-600 hover:text-primary-800"
+                />
+              </a>
               
               <button
                 v-if="wo.status === 'pending'"
