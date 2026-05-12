@@ -28,8 +28,8 @@ class ProductController extends BaseController
         ])
             ->applyStandardFilters(
                 $request,
-                ['code', 'name'], // Searchable fields
-                ['type', 'tracking', 'is_active'] // Exact match filters
+                ['code', 'name'],
+                ['type', 'tracking', 'is_active']
             );
 
         $counts = $this->getStatusCounts(Product::query(), 'type');
@@ -65,12 +65,10 @@ class ProductController extends BaseController
 
         $product->on_hand = $product->stocks->sum('quantity');
 
-        // Boms where this product is used as a component
         $product->used_in_boms = $product->bomLines->map(function ($line) {
             return $line->bom;
         })->unique('id')->values();
 
-        // Recent MOs where this product is being produced
         $product->recent_mos = $product->manufacturingOrders()
             ->latest()
             ->take(5)
@@ -84,7 +82,6 @@ class ProductController extends BaseController
         $validated = $request->validated();
 
         if ($request->hasFile('image')) {
-            // Delete old image if exists
             if ($product->image_url && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image_url)) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image_url);
             }
@@ -100,7 +97,6 @@ class ProductController extends BaseController
 
     public function destroy(Product $product)
     {
-        // Optional: Check for dependencies before deleting
         if ($product->stocks()->where('quantity', '>', 0)->exists()) {
             return $this->error('Cannot delete product with existing stock.', 422);
         }

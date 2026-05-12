@@ -24,8 +24,8 @@ class UnbuildOrderController extends BaseController
             ->with(['product:id,name,code', 'bom:id'])
             ->applyStandardFilters(
                 $request,
-                ['name', 'reason'], // Searchable
-                ['status', 'product_id', 'manufacturing_order_id'] // Filterable
+                ['name', 'reason'], 
+                ['status', 'product_id', 'manufacturing_order_id']
             );
 
         $counts = $this->getStatusCounts(UnbuildOrder::query(), 'status');
@@ -42,7 +42,7 @@ class UnbuildOrderController extends BaseController
 
         $validated = $request->validated();
         $validated['created_by'] = $request->user()->id;
-        $validated['name'] = 'UO-' . date('YmdHis'); // Simple generation
+        $validated['name'] = 'UO-' . date('YmdHis'); 
 
         $unbuildOrder = $this->unbuildOrderService->create($validated);
 

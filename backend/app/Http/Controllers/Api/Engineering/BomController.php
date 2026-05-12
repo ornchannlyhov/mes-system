@@ -33,12 +33,10 @@ class BomController extends BaseController
             ])
             ->applyStandardFilters(
                 $request,
-                [], // No searching by text on base BOM table yet, maybe product name?
-                ['product_id', 'is_active', 'type'] // Exact filters
+                [],
+                ['product_id', 'is_active', 'type']
             );
 
-        // For BOMs, we might want to search by Product Name.
-        // This handles standard filters. If we need relationship search, we add it here manually.
         if ($request->has('search') && $request->search) {
             $search = strtolower($request->search);
             $query->orWhereHas('product', function ($q) use ($search) {

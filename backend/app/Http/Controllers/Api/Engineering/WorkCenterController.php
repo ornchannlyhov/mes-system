@@ -14,8 +14,8 @@ class WorkCenterController extends BaseController
     {
         $query = WorkCenter::query()->applyStandardFilters(
             $request,
-            ['name', 'code'], // Searchable
-            ['status', 'organization_id'] // Filterable
+            ['name', 'code'],
+            ['status', 'organization_id']
         );
 
         $counts = $this->getStatusCounts(WorkCenter::query(), 'status');

@@ -30,7 +30,11 @@
           <tr v-for="schedule in paginatedSchedules" :key="schedule.id">
             <td class="font-medium">{{ schedule.name }}</td>
             <td>{{ schedule.equipment?.name || 'N/A' }}</td>
-            <td>{{ schedule.interval_days }} days</td>
+            <td>
+              <span v-if="schedule.trigger_type === 'time'">{{ schedule.interval_days }} days</span>
+              <span v-else-if="schedule.trigger_type === 'cycles'">{{ schedule.interval_cycles }} cycles</span>
+              <span v-else>{{ schedule.interval_days }} days</span>
+            </td>
             <td>{{ formatDate(schedule.last_maintenance) }}</td>
             <td :class="isOverdue(schedule.next_maintenance) ? 'text-red-600 font-medium' : ''">
               {{ formatDate(schedule.next_maintenance) }}
@@ -108,8 +112,11 @@
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Interval (days)</label>
-          <input v-model.number="form.interval_days" type="number" min="1" class="input" required />
+          <label class="block text-sm font-medium text-gray-700 mb-1">Interval</label>
+          <input v-model.number="form.interval" type="number" min="1" class="input" placeholder="e.g., 30 for days, 100 for cycles" required />
+          <p class="text-xs text-gray-500 mt-1">
+            Enter days for time-based (e.g., 30, 60) or cycles for cycle-based (e.g., 100, 500)
+          </p>
         </div>
         <div>
           <label class="flex items-center gap-2">
@@ -160,7 +167,7 @@ const showDeleteModal = ref(false)
 const deletingItem = ref<Schedule | null>(null)
 const currentPage = ref(1)
 const pageSize = 10
-const form = ref({ name: '', equipment_id: null as number | null, interval_days: 30, is_active: true })
+const form = ref({ name: '', equipment_id: null as number | null, interval: 30, is_active: true })
 const loading = ref(true)
 
 function isOverdue(date?: string) {
@@ -193,10 +200,15 @@ async function fetchData(force = false) {
 function openModal(schedule?: Schedule) {
   if (schedule) {
     editing.value = schedule
-    form.value = { name: schedule.name, equipment_id: schedule.equipment_id, interval_days: schedule.interval_days, is_active: schedule.is_active }
+    form.value = { 
+      name: schedule.name, 
+      equipment_id: schedule.equipment_id, 
+      interval: schedule.trigger_type === 'cycles' ? schedule.interval_cycles || 100 : schedule.interval_days || 30,
+      is_active: schedule.is_active 
+    }
   } else {
     editing.value = null
-    form.value = { name: '', equipment_id: null, interval_days: 30, is_active: true }
+    form.value = { name: '', equipment_id: null, interval: 30, is_active: true }
   }
   showModal.value = true
 }
@@ -204,11 +216,23 @@ function openModal(schedule?: Schedule) {
 async function save() {
   saving.value = true
   try {
+    // Auto-determine trigger type based on interval value
+    const interval = form.value.interval
+    const trigger_type = interval <= 90 ? 'time' : 'cycles' // Assume <=90 days is time-based, >90 is cycles
+    const payload = {
+      name: form.value.name,
+      equipment_id: form.value.equipment_id,
+      trigger_type: trigger_type,
+      interval_days: trigger_type === 'time' ? interval : null,
+      interval_cycles: trigger_type === 'cycles' ? interval : null,
+      is_active: form.value.is_active
+    }
+    
     if (editing.value) {
-      await $api(`/maintenance/schedules/${editing.value.id}`, { method: 'PUT', body: form.value })
+      await $api(`/maintenance/schedules/${editing.value.id}`, { method: 'PUT', body: payload })
       toast.success('Schedule updated successfully')
     } else {
-      await $api('/maintenance/schedules', { method: 'POST', body: form.value })
+      await $api('/maintenance/schedules', { method: 'POST', body: payload })
       toast.success('Schedule created successfully')
     }
     showModal.value = false

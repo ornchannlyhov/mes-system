@@ -26,8 +26,8 @@ class ConsumptionController extends BaseController
             ->with(['product:id,name,code,uom,cost,image_url', 'manufacturingOrder:id,name'])
             ->applyStandardFilters(
                 $request,
-                [], // Searchable fields in valid text columns (none explicit here yet)
-                ['manufacturing_order_id', 'product_id'] // Filterable
+                [],
+                ['manufacturing_order_id', 'product_id']
             );
 
         if ($request->has('has_variance')) {
@@ -46,7 +46,7 @@ class ConsumptionController extends BaseController
 
 
         return $this->respondWithPagination(
-            $query->paginate($request->get('per_page', 20)) // Keep default 20 relevant to existing logic
+            $query->paginate($request->get('per_page', 20)) 
         );
     }
 
@@ -229,7 +229,7 @@ class ConsumptionController extends BaseController
                     $this->stockService->adjust($location, [
                         'product_id' => $consumption->product_id,
                         'quantity' => $consumption->qty_consumed,
-                        'type' => 'add', // Return consumed materials
+                        'type' => 'add',
                         'lot_id' => $consumption->lot_id,
                         'reason' => 'consumption_reversal',
                         'reference' => $mo->name,

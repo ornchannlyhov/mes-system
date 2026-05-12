@@ -18,8 +18,8 @@ class StockController extends BaseController
             ])
             ->applyStandardFilters(
                 $request,
-                [], // No direct text fields on stock to search
-                ['location_id', 'product_id', 'lot_id'] // Exact filters
+                [],
+                ['location_id', 'product_id', 'lot_id']
             );
 
         if ($request->has('search') && $request->search) {

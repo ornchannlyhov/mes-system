@@ -15,8 +15,8 @@ class CostEntryController extends BaseController
             ->with(['product:id,name,code,uom'])
             ->applyStandardFilters(
                 $request,
-                ['notes'], // Searchable
-                ['cost_type', 'manufacturing_order_id', 'product_id'] // Filterable
+                ['notes'],
+                ['cost_type', 'manufacturing_order_id', 'product_id']
             );
 
         return $this->respondWithPagination(

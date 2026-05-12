@@ -17,8 +17,8 @@ class EquipmentController extends BaseController
         $query = Equipment::with('workCenter:id,name,code')
             ->applyStandardFilters(
                 $request,
-                ['name', 'code', 'notes'], // Searchable
-                ['status', 'work_center_id'] // Filterable
+                ['name', 'code', 'notes'], 
+                ['status', 'work_center_id']
             );
 
         if ($request->boolean('maintenance_due')) {

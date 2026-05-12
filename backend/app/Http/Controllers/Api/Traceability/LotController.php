@@ -16,8 +16,8 @@ class LotController extends BaseController
             ->with(['product:id,name,code'])
             ->applyStandardFilters(
                 $request,
-                ['name', 'notes'], // Searchable
-                ['product_id'] // Filterable
+                ['name', 'notes'], 
+                ['product_id']
             );
 
         return $this->respondWithPagination(
@@ -70,17 +70,15 @@ class LotController extends BaseController
             'type' => $isSerial ? 'serial' : 'lot',
             'identifier' => $serialOrLot->name,
             'product' => $serialOrLot->product->name ?? 'Unknown',
-            'status' => $serialOrLot->status ?? 'unknown', // Lot might not have status, Serial does
+            'status' => $serialOrLot->status ?? 'unknown', 
             'children' => [],
         ];
 
         // Find the MO that produced this item
         $mo = null;
         if ($isSerial) {
-            // @var \App\Models\Serial $serialOrLot
             $mo = $serialOrLot->manufacturingOrder;
         } else {
-            // For Lot, we find MO where this lot was output
             $mo = \App\Models\ManufacturingOrder::where('lot_id', $serialOrLot->id)->first();
         }
 

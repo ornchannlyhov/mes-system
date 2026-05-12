@@ -44,8 +44,8 @@ class ManufacturingOrderController extends BaseController
             ])
             ->applyStandardFilters(
                 $request,
-                [], // Text search handled via custom logic below
-                ['status', 'product_id', 'priority', 'bom_id'] // Filterable
+                [],
+                ['status', 'product_id', 'priority', 'bom_id']
             );
 
         if ($request->has('search') && $request->search) {

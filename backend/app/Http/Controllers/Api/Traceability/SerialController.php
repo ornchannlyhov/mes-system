@@ -16,8 +16,8 @@ class SerialController extends BaseController
             ->with(['product:id,name,code', 'lot:id,name', 'manufacturingOrder:id,name'])
             ->applyStandardFilters(
                 $request,
-                ['name'], // Searchable
-                ['product_id', 'status', 'lot_id'] // Filterable
+                ['name'],   
+                ['product_id', 'status', 'lot_id'] 
             );
 
         $counts = $this->getStatusCounts(Serial::query(), 'status');

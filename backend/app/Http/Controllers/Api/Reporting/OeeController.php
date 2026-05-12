@@ -15,8 +15,8 @@ class OeeController extends BaseController
         $query = OeeRecord::with('workCenter')
             ->applyStandardFilters(
                 $request,
-                [], // No direct text fields to search really, maybe work center name via relation if needed
-                ['work_center_id'] // Filterable
+                [],
+                ['work_center_id']
             );
 
         if ($request->has('start_date')) {
