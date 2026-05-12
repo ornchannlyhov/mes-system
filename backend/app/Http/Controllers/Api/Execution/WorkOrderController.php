@@ -54,8 +54,8 @@ class WorkOrderController extends BaseController
             ])
             ->applyStandardFilters(
                 $request,
-                [], // Text search handled via relations below
-                ['status', 'work_center_id', 'assigned_to', 'manufacturing_order_id', 'qa_status'] // Filterable
+                [],
+                ['status', 'work_center_id', 'assigned_to', 'manufacturing_order_id', 'qa_status']
             );
 
         if ($request->has('search') && $request->search) {

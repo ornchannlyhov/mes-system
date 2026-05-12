@@ -41,7 +41,7 @@ class AuthTest extends TestCase
 
     public function test_user_can_login()
     {
-        // Create organization and role directly (no factories)
+        // Create organization and role directly 
         $organization = \App\Models\Organization::create(['name' => 'Test Org', 'is_active' => true]);
         $role = \App\Models\Role::create([
             'name' => 'admin',

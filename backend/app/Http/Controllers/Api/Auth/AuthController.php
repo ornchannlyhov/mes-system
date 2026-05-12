@@ -30,7 +30,6 @@ class AuthController extends Controller
         // Clean up expired registration attempts
         \App\Models\RegistrationAttempt::where('expires_at', '<', now())->delete();
 
-        // Store registration attempt (deferred creation)
         // Store raw password - User model will hash it when user is created
         \App\Models\RegistrationAttempt::updateOrCreate(
             ['email' => $validated['email']],

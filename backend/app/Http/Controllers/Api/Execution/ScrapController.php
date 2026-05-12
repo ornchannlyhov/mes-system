@@ -22,8 +22,8 @@ class ScrapController extends BaseController
             ->with(['product:id,name,code,cost,image_url', 'manufacturingOrder:id,name', 'workOrder:id,status', 'reporter:id,name', 'location:id,name,code'])
             ->applyStandardFilters(
                 $request,
-                [], // Text search handled via relations below
-                ['product_id', 'manufacturing_order_id', 'work_order_id'] // Filterable
+                [],
+                ['product_id', 'manufacturing_order_id', 'work_order_id']
             );
 
         if ($request->has('search') && $request->search) {

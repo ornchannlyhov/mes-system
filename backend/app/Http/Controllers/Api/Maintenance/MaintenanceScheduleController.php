@@ -16,8 +16,8 @@ class MaintenanceScheduleController extends BaseController
             ->with(['equipment:id,name,code,status'])
             ->applyStandardFilters(
                 $request,
-                ['name', 'instructions'], // Searchable
-                ['equipment_id', 'trigger_type', 'is_active'] // Filterable
+                ['name', 'instructions'],   
+                ['equipment_id', 'trigger_type', 'is_active']
             );
 
         return $this->respondWithPagination(

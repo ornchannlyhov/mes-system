@@ -24,8 +24,8 @@ class StockAdjustmentController extends BaseController
             ->with(['product:id,name,code', 'location:id,name,code', 'lot:id,name', 'user:id,name'])
             ->applyStandardFilters(
                 $request,
-                ['reference', 'notes'], // Searchable fields
-                ['reason', 'product_id', 'location_id', 'lot_id'] // Exact filters
+                ['reference', 'notes'], 
+                ['reason', 'product_id', 'location_id', 'lot_id']
             );
 
         if ($request->has('date_from')) {
