@@ -19,7 +19,8 @@ class UpdateProductRequest extends FormRequest
                 'string',
                 'max:50',
                 \Illuminate\Validation\Rule::unique('products')->ignore($this->route('product'))->where(function ($query) {
-                    return $query->where('organization_id', $this->user()->organization_id);
+                    return $query->where('organization_id', $this->user()->organization_id)
+                                 ->whereNull('deleted_at');
                 })
             ],
             'name' => 'sometimes|string|max:255',

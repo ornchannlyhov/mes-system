@@ -536,10 +536,20 @@ function openDetail(bom: Bom) {
 async function save() {
   saving.value = true
   try {
+    const isTempId = (id: any) => typeof id === 'string' && id.startsWith('temp_')
+    const lines = form.value.lines.map((l, i) => ({
+      ...l,
+      id: isTempId(l.id) ? undefined : l.id,
+      sequence: i,
+    }))
     const payload = {
       ...form.value,
-      lines: form.value.lines.map((l, i) => ({ ...l, sequence: i })),
-      operations: form.value.operations.map((o, i) => ({ ...o, sequence: i })),
+      lines,
+      operations: form.value.operations.map((o, i) => ({
+        ...o,
+        sequence: i,
+        produces_bom_line_id: isTempId(o.produces_bom_line_id) ? null : o.produces_bom_line_id,
+      })),
     }
 
     if (editing.value) {

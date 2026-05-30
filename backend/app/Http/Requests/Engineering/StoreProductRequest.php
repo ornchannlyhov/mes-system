@@ -19,7 +19,8 @@ class StoreProductRequest extends FormRequest
                 'string',
                 'max:50',
                 \Illuminate\Validation\Rule::unique('products')->where(function ($query) {
-                    return $query->where('organization_id', $this->user()->organization_id);
+                    return $query->where('organization_id', $this->user()->organization_id)
+                                 ->whereNull('deleted_at');
                 })
             ],
             'name' => 'required|string|max:255',
