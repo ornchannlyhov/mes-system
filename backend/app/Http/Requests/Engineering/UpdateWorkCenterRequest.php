@@ -20,7 +20,10 @@ class UpdateWorkCenterRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:50',
-                Rule::unique('work_centers', 'code')->ignore($this->work_center),
+                Rule::unique('work_centers')->ignore($this->work_center)->where(function ($query) {
+                    return $query->where('organization_id', $this->user()->organization_id)
+                                 ->whereNull('deleted_at');
+                }),
             ],
             'location' => 'nullable|string|max:255',
             'cost_per_hour' => 'nullable|numeric|min:0',

@@ -70,7 +70,7 @@ class UserController extends BaseController
 
         if ($request->hasFile('avatar')) {
             $path = $request->file('avatar')->store('avatars', 'public');
-            $userData['avatar_url'] = '/storage/' . $path;
+            $userData['avatar_url'] = $path;
         } elseif (isset($validated['remove_avatar']) && $validated['remove_avatar']) {
             $userData['avatar_url'] = null;
         }

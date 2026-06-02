@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('app:start-scheduled-orders')->everyMinute();
+Schedule::command('app:prune-uploads')->hourly();

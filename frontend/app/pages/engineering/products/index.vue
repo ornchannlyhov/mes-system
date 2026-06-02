@@ -333,6 +333,7 @@ const locations = computed(() => masterStore.locations)
 
 const selectedFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
+const imageCleared = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 // Computed
@@ -391,32 +392,23 @@ async function fetchProducts() {
   }
 }
 
-async function handleImageSelect(event: Event) {
+function handleImageSelect(event: Event) {
   const input = event.target as HTMLInputElement
   if (!input.files || !input.files[0]) return
   const file = input.files[0]
 
-  // Show base64 preview immediately for UX
+  selectedFile.value = file
+  imageCleared.value = false
+
   const reader = new FileReader()
   reader.onload = (e) => { imagePreview.value = e.target?.result as string }
   reader.readAsDataURL(file)
-
-  // Upload immediately so the URL is in form.image_url and gets cached
-  try {
-    const fd = new FormData()
-    fd.append('file', file)
-    const res = await $api<{ url: string }>('/upload', { method: 'POST', body: fd })
-    form.value.image_url = res.url
-    selectedFile.value = null // no need to re-upload on save
-  } catch {
-    selectedFile.value = file // fallback: upload on save
-    toast.error('Image pre-upload failed — will upload on save')
-  }
 }
 
 function clearImage() {
   selectedFile.value = null
   imagePreview.value = null
+  imageCleared.value = true
   form.value.image_url = null
   if (fileInput.value) {
     fileInput.value.value = ''
@@ -426,6 +418,7 @@ function clearImage() {
 function openModal(product?: Product) {
   selectedFile.value = null
   imagePreview.value = null
+  imageCleared.value = false
   if (fileInput.value) fileInput.value.value = ''
 
   if (product) {
@@ -462,8 +455,9 @@ async function saveProduct() {
     }
 
     if (selectedFile.value) {
-      // Fallback: upload failed eagerly, send as file
       formData.append('image', selectedFile.value)
+    } else if (imageCleared.value) {
+      formData.append('image_url', '')
     } else if (form.value.image_url) {
       formData.append('image_url', form.value.image_url)
     }
@@ -503,6 +497,7 @@ function clearProductForm() {
   productCache.clear()
   selectedFile.value = null
   imagePreview.value = null
+  imageCleared.value = false
   if (fileInput.value) fileInput.value.value = ''
   form.value = productCache.fresh()
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Engineering;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreWorkCenterRequest extends FormRequest
 {
@@ -15,7 +16,15 @@ class StoreWorkCenterRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:work_centers',
+            'code' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('work_centers')->where(function ($query) {
+                    return $query->where('organization_id', $this->user()->organization_id)
+                                 ->whereNull('deleted_at');
+                }),
+            ],
             'location' => 'nullable|string|max:255',
             'cost_per_hour' => 'nullable|numeric|min:0',
             'overhead_per_hour' => 'nullable|numeric|min:0',
@@ -24,4 +33,3 @@ class StoreWorkCenterRequest extends FormRequest
         ];
     }
 }
-
