@@ -449,7 +449,15 @@ function addComponent() {
 }
 
 function removeComponent(index: number) {
+  const removedId = form.value.lines[index]?.id
   form.value.lines.splice(index, 1)
+  if (removedId !== undefined) {
+    form.value.operations.forEach(op => {
+      if (op.produces_bom_line_id === removedId) {
+        op.produces_bom_line_id = null
+      }
+    })
+  }
 }
 
 function addOperation() {
@@ -541,8 +549,16 @@ async function save() {
   try {
     const payload = {
       ...form.value,
-      lines: form.value.lines.map((l, i) => ({ ...l, sequence: i })),
-      operations: form.value.operations.map((o, i) => ({ ...o, sequence: i })),
+      lines: form.value.lines.map((l, i) => ({
+        ...l,
+        id: typeof l.id === 'string' ? undefined : l.id,
+        sequence: i,
+      })),
+      operations: form.value.operations.map((o, i) => ({
+        ...o,
+        sequence: i,
+        produces_bom_line_id: typeof o.produces_bom_line_id === 'string' ? null : o.produces_bom_line_id,
+      })),
     }
 
     if (editing.value) {

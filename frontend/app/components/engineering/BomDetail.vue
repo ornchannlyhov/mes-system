@@ -487,9 +487,20 @@ async function deleteLine() {
   if (!deletingLineItem.value) return
   deletingLine.value = true
   try {
-    await $api(`/boms/${props.bomId}/lines/${deletingLineItem.value.id}`, { method: 'DELETE' })
+    const deletedId = deletingLineItem.value.id
+    await $api(`/boms/${props.bomId}/lines/${deletedId}`, { method: 'DELETE' })
     toast.success('Component removed')
     showDeleteLineModal.value = false
+
+    // Clear stale produces_bom_line_id from operation form and its cache
+    if (operationForm.value.produces_bom_line_id === deletedId) {
+      operationForm.value.produces_bom_line_id = null
+    }
+    const cachedOp = opCache.load()
+    if (cachedOp.produces_bom_line_id === deletedId) {
+      opCache.persist({ ...cachedOp, produces_bom_line_id: null })
+    }
+
     await fetchData()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete component')
@@ -552,6 +563,11 @@ async function handleFileUpload(event: Event) {
 
 async function saveOperation() {
   savingOperation.value = true
+  // Guard: null out produces_bom_line_id if it no longer belongs to this BOM
+  if (operationForm.value.produces_bom_line_id !== null &&
+      !lines.value.some(l => l.id === operationForm.value.produces_bom_line_id)) {
+    operationForm.value.produces_bom_line_id = null
+  }
   try {
     if (editingOperation.value) {
       await $api(`/boms/${props.bomId}/operations/${editingOperation.value.id}`, { method: 'PUT', body: operationForm.value })

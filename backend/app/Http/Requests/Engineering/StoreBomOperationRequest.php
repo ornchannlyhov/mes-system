@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Engineering;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreBomOperationRequest extends FormRequest
 {
@@ -20,7 +21,10 @@ class StoreBomOperationRequest extends FormRequest
             'sequence' => 'nullable|integer|min:0',
             'needs_quality_check' => 'boolean',
             'instruction_file_url' => 'nullable|string',
-            'produces_bom_line_id' => 'nullable|exists:bom_lines,id',
+            'produces_bom_line_id' => [
+                'nullable',
+                Rule::exists('bom_lines', 'id')->where('bom_id', $this->route('bom')->id),
+            ],
         ];
     }
 }
