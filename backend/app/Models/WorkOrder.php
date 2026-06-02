@@ -75,21 +75,11 @@ class WorkOrder extends Model
         return $this->hasMany(Scrap::class);
     }
 
-    // Start timer
     public function start(): void
     {
         $this->update([
             'status' => 'in_progress',
             'started_at' => now(),
-        ]);
-    }
-
-    // Stop timer
-    public function finish(): void
-    {
-        $duration = $this->started_at->diffInMinutes(now());
-        $this->update([
-            'status' => 'done',
         ]);
     }
 

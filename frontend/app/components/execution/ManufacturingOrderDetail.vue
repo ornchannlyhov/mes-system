@@ -189,7 +189,10 @@
                 <td class="font-medium text-gray-900 py-3">{{ wo.operation?.name }}</td>
                 <td class="text-gray-600 py-3">{{ wo.work_center?.name }}</td>
                 <td class="font-mono text-xs text-gray-500">{{ formatDuration(wo.duration_expected) }}</td>
-                <td class="font-mono text-xs text-gray-500">{{ formatDuration(wo.duration_actual) }}</td>
+                <td class="font-mono text-xs" :class="wo.status === 'in_progress' ? 'text-orange-500 font-semibold' : 'text-gray-500'">
+                    {{ liveFormatDuration(wo) }}
+                    <span v-if="wo.status === 'in_progress'" class="ml-1 inline-block w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse align-middle"></span>
+                </td>
                 <td><UiStatusBadge :status="wo.status" /></td>
                 <td>
                     <UiFilePreview 
@@ -423,7 +426,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ManufacturingOrder, CostEntry, Location } from '~/types/models'
+import type { ManufacturingOrder, CostEntry, Location, WorkOrder } from '~/types/models'
 
 const props = defineProps<{
   orderId: number
@@ -466,6 +469,30 @@ const paginatedCostDetails = computed(() => {
 })
 
 const actionLoading = ref(false)
+
+// Reactive clock — useNow() ticks every second and is properly reactive in Vue
+const now = useNow()
+
+function liveDurationMinutes(wo: WorkOrder): number {
+    const base = Number(wo.duration_actual ?? 0)
+    if (wo.status === 'in_progress' && wo.started_at) {
+        const elapsedMs = now.value.getTime() - new Date(wo.started_at).getTime()
+        return base + Math.max(0, elapsedMs / 60000)
+    }
+    return base
+}
+
+function liveFormatDuration(wo: WorkOrder): string {
+    const minutes = liveDurationMinutes(wo)
+    if (!minutes && wo.status !== 'in_progress') return '-'
+    const totalSeconds = Math.floor(minutes * 60)
+    const h = Math.floor(totalSeconds / 3600)
+    const m = Math.floor((totalSeconds % 3600) / 60)
+    const s = totalSeconds % 60
+    const mStr = m.toString().padStart(2, '0')
+    const sStr = s.toString().padStart(2, '0')
+    return h > 0 ? `${h}:${mStr}:${sStr}` : `${mStr}:${sStr}`
+}
 
 // Image Preview
 const showImagePreview = ref(false)

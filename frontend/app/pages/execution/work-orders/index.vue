@@ -594,12 +594,12 @@ function formatDuration(minutes: number) {
 
 function durationPercent(wo: WorkOrder) {
   if (!wo.duration_expected) return 0
-  return (wo.duration_actual / wo.duration_expected) * 100
+  return (getLiveDuration(wo) / wo.duration_expected) * 100
 }
 
 function durationClass(wo: WorkOrder) {
-  const percent = durationPercent(wo)
   if (wo.status === 'done') return 'bg-green-500'
+  const percent = durationPercent(wo)
   if (percent > 100) return 'bg-red-500'
   if (percent > 80) return 'bg-amber-500'
   return 'bg-primary-500'
