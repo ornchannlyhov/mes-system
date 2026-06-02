@@ -63,7 +63,7 @@ class ProductController extends BaseController
 
         $product = Product::create(\Illuminate\Support\Arr::except($validated, ['initial_qty', 'location_id']));
 
-        if ($initialQty > 0 && $locationId) {
+        if ($locationId) {
             $this->stockService->adjustStock([
                 'product_id'  => $product->id,
                 'location_id' => $locationId,

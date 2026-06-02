@@ -5,7 +5,7 @@ export function useAuth() {
     const user = useState<User | null>('auth-user', () => null)
     // Use useCookie instead of localStorage for SSR compatibility
     const tokenCookie = useCookie<string | null>('auth-token', {
-        maxAge: 60 * 60 * 24 * 7, // 7 days
+        maxAge: 60 * 60 * 2, // 2 hours
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
         domain: config.public.cookieDomain || undefined,

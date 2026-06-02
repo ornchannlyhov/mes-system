@@ -85,7 +85,7 @@ export function useIdleTimeout() {
 
             // Update the cookie
             const tokenCookie = useCookie<string | null>('auth-token', {
-                maxAge: 60 * 60 * 24 * 7,
+                maxAge: 60 * 60 * 2, // 2 hours
                 sameSite: 'lax',
                 secure: process.env.NODE_ENV === 'production',
                 domain: config.public.cookieDomain || undefined,

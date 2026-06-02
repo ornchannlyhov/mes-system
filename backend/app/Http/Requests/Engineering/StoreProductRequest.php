@@ -32,11 +32,7 @@ class StoreProductRequest extends FormRequest
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'image_url' => 'nullable|string|max:500',
             'initial_qty' => 'nullable|numeric|min:0',
-            'location_id' => [
-                \Illuminate\Validation\Rule::requiredIf(fn () => (float) $this->input('initial_qty', 0) > 0),
-                'nullable',
-                'exists:locations,id',
-            ],
+            'location_id' => ['required', 'exists:locations,id'],
         ];
     }
 }

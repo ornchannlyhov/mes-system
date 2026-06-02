@@ -201,11 +201,10 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">
-                Location
-                <span v-if="form.initial_qty > 0" class="text-red-500">*</span>
+                Location <span class="text-red-500">*</span>
               </label>
-              <select v-model="form.location_id" class="input" :required="form.initial_qty > 0">
-                <option :value="null">{{ form.initial_qty > 0 ? 'Select location...' : 'None' }}</option>
+              <select v-model="form.location_id" class="input" required>
+                <option :value="null">Select location...</option>
                 <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }}</option>
               </select>
             </div>
@@ -415,7 +414,7 @@ function clearImage() {
   }
 }
 
-function openModal(product?: Product) {
+async function openModal(product?: Product) {
   selectedFile.value = null
   imagePreview.value = null
   imageCleared.value = false
@@ -433,7 +432,6 @@ function openModal(product?: Product) {
     }
   } else {
     editingProduct.value = null
-    masterStore.fetchLocations()
     form.value = productCache.load()
   }
   showModal.value = true
@@ -462,11 +460,14 @@ async function saveProduct() {
       formData.append('image_url', form.value.image_url)
     }
 
-    if (!editingProduct.value && form.value.initial_qty > 0) {
-      formData.append('initial_qty', String(form.value.initial_qty))
-      if (form.value.location_id) {
-        formData.append('location_id', String(form.value.location_id))
+    if (!editingProduct.value) {
+      if (!form.value.location_id) {
+        toast.error('Please select a location.')
+        saving.value = false
+        return
       }
+      formData.append('location_id', String(form.value.location_id))
+      formData.append('initial_qty', String(form.value.initial_qty ?? 0))
     }
 
     if (editingProduct.value) {
@@ -530,7 +531,7 @@ async function deleteProduct() {
 const route = useRoute()
 
 onMounted(async () => {
-    await fetchProducts()
+    await Promise.all([fetchProducts(), masterStore.fetchLocations()])
     if (route.query.id) {
          const id = Number(route.query.id)
          if (!isNaN(id)) {
