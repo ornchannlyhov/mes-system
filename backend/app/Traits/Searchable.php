@@ -16,7 +16,16 @@ trait Searchable
      * @param array $filterableFields Exact match filters (e.g., ['status', 'type'])
      * @return Builder
      */
-    public function scopeApplyStandardFilters(Builder $query, Request $request, array $searchableFields = [], array $filterableFields = [])
+    /**
+     * Columns always safe to sort by regardless of model.
+     * Controllers pass $allowedSortColumns to extend this list.
+     */
+    private static array $baseSortColumns = [
+        'id', 'created_at', 'updated_at', 'name', 'code', 'status',
+        'priority', 'scheduled_start', 'scheduled_end', 'is_active',
+    ];
+
+    public function scopeApplyStandardFilters(Builder $query, Request $request, array $searchableFields = [], array $filterableFields = [], array $allowedSortColumns = [])
     {
         // 1. Exact Filters
         foreach ($filterableFields as $field) {
@@ -39,15 +48,16 @@ trait Searchable
             });
         }
 
-        // 3. Sorting
+        // 3. Sorting — allowlist prevents SQL injection via unsanitized sort_by input
+        $allowed = array_merge(self::$baseSortColumns, $allowedSortColumns);
         $sortColumn = $request->input('sort_by', 'created_at');
-        // Prevent sorting by unauthorized columns to avoid SQL injection vulnerability
-        // For simplicity, we assume strict models or rely on the fact that undefined columns throw SQL error (500)
-        // A better approach is to whitelist allowed sort columns in the controller.
-        $sortDirection = $request->input('sort_order', 'desc');
+        if (!in_array($sortColumn, $allowed, true)) {
+            $sortColumn = 'created_at';
+        }
 
-        // Simple validation for direction
-        $sortDirection = in_array(strtolower($sortDirection), ['asc', 'desc']) ? $sortDirection : 'desc';
+        $sortDirection = in_array(strtolower((string) $request->input('sort_order', 'desc')), ['asc', 'desc'])
+            ? $request->input('sort_order', 'desc')
+            : 'desc';
 
         $query->orderBy($sortColumn, $sortDirection);
 

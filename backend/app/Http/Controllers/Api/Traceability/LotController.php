@@ -6,13 +6,17 @@ use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Traceability\StoreLotRequest;
 use App\Http\Requests\Traceability\UpdateLotRequest;
 use App\Models\Lot;
+use App\Services\StockService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LotController extends BaseController
 {
+    public function __construct(protected StockService $stockService) {}
+
     public function index(Request $request)
     {
-        $query = Lot::select(['id', 'name', 'notes', 'product_id', 'expiry_date', 'created_at'])
+        $query = Lot::select(['id', 'name', 'notes', 'product_id', 'expiry_date', 'initial_qty', 'created_at'])
             ->with(['product:id,name,code'])
             ->applyStandardFilters(
                 $request,
@@ -28,7 +32,20 @@ class LotController extends BaseController
 
     public function store(StoreLotRequest $request)
     {
-        $lot = Lot::create($request->validated());
+        $validated = $request->validated();
+
+        $lot = Lot::create(\Illuminate\Support\Arr::except($validated, ['location_id']));
+
+        if (!empty($validated['initial_qty']) && $validated['initial_qty'] > 0 && !empty($validated['location_id'])) {
+            $this->stockService->adjustStock([
+                'product_id'  => $lot->product_id,
+                'location_id' => $validated['location_id'],
+                'lot_id'      => $lot->id,
+                'quantity'    => $validated['initial_qty'],
+                'reason'      => 'initial',
+                'notes'       => "Initial stock for lot {$lot->name}",
+            ]);
+        }
 
         return $this->success($lot->load('product'), [], 201);
     }
@@ -49,7 +66,28 @@ class LotController extends BaseController
 
     public function destroy(Lot $lot)
     {
-        $lot->delete();
+        // Block deletion if lot is referenced by any consumption or manufacturing order
+        if ($lot->consumptions()->exists()) {
+            return $this->error('Cannot delete lot: it has been used in manufacturing consumptions.', 422);
+        }
+
+        if ($lot->manufacturingOrders()->exists()) {
+            return $this->error('Cannot delete lot: it is linked to manufacturing orders.', 422);
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($lot) {
+            // Revert all stock that belongs to this lot
+            foreach ($lot->stocks as $stock) {
+                // Remove the initial adjustment audit record for this lot
+                \App\Models\StockAdjustment::where('lot_id', $lot->id)
+                    ->where('reason', 'initial')
+                    ->delete();
+
+                $stock->delete();
+            }
+
+            $lot->delete();
+        });
 
         return $this->success(null, [], 204);
     }

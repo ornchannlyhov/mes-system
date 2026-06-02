@@ -135,19 +135,77 @@ class DatabaseSeeder extends Seeder
         );
         $pendingOrg2->update(['owner_id' => \App\Models\User::where('email', 'newuser@example.com')->first()->id]);
 
+        // 5. Simple Demo organisation (one table BOM — easy onboarding walkthrough)
+        $demoOrg = \App\Models\Organization::firstOrCreate(
+            ['name' => 'Simple Demo'],
+            [
+                'is_active'    => true,
+                'activated_at' => now(),
+                'activated_by' => $superadmin->id,
+                'user_limit'   => 10,
+            ]
+        );
+
+        $demoAdmin = User::firstOrCreate(
+            ['email' => 'demo@example.com'],
+            [
+                'name'            => 'Demo User',
+                'password'        => Hash::make('password'),
+                'role_id'         => $adminRole->id,
+                'is_active'       => true,
+                'is_approved'     => true,
+                'approved_at'     => now(),
+                'approved_by'     => $superadmin->id,
+                'organization_id' => $demoOrg->id,
+            ]
+        );
+        $demoOrg->update(['owner_id' => $demoAdmin->id]);
+
+        User::firstOrCreate(
+            ['email' => 'demo.manager@example.com'],
+            [
+                'name'            => 'Demo Manager',
+                'password'        => Hash::make('password'),
+                'role_id'         => $managerRole->id,
+                'is_active'       => true,
+                'is_approved'     => true,
+                'approved_at'     => now(),
+                'approved_by'     => $superadmin->id,
+                'organization_id' => $demoOrg->id,
+            ]
+        );
+
+        User::firstOrCreate(
+            ['email' => 'demo.operator@example.com'],
+            [
+                'name'            => 'Demo Operator',
+                'password'        => Hash::make('password'),
+                'role_id'         => $operatorRole->id,
+                'is_active'       => true,
+                'is_approved'     => true,
+                'approved_at'     => now(),
+                'approved_by'     => $superadmin->id,
+                'organization_id' => $demoOrg->id,
+            ]
+        );
+
         // For seeders to use the team, we can login the admin
         Auth::login($admin);
 
-        // 2. Clothing Demo Data (Replaces old Master/Transactional Data)
-        $this->call([
-            ClothingSeeder::class,
-        ]);
+        // 6. Full table manufacturing demo data (Prestige Table Works Co.)
+        $this->call(TableManufacturingSeeder::class);
+
+        // 7. Simple demo data (Simple Demo org — easy onboarding walkthrough)
+        $this->call(SimpleDemoSeeder::class);
 
         $this->command->info('✅ Database fully seeded for Demo!');
-        $this->command->info('   Superadmin: superadmin@example.com / password (use /sysadmin/login)');
-        $this->command->info('   Admin: admin@example.com / password');
-        $this->command->info('   Operator: operator@example.com / password');
-        $this->command->info('   Manager: manager@example.com / password');
+        $this->command->info('   Superadmin:    superadmin@example.com / password (use /sysadmin/login)');
+        $this->command->info('   Admin:         admin@example.com / password  (Prestige Table Works Co.)');
+        $this->command->info('   Operator:      operator@example.com / password');
+        $this->command->info('   Manager:       manager@example.com / password');
+        $this->command->info('   Demo (Admin):    demo@example.com / password  (Simple Demo)');
+        $this->command->info('   Demo (Manager):  demo.manager@example.com / password  (Simple Demo)');
+        $this->command->info('   Demo (Operator): demo.operator@example.com / password  (Simple Demo)');
         $this->command->info('   Pending Users: pending@example.com, newuser@example.com / password (need approval)');
     }
 }

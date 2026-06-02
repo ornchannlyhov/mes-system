@@ -242,11 +242,18 @@ function toggleCollapse() {
   uiStore.toggleSidebar()
 }
 
+// Named handler so it can be removed in onUnmounted — anonymous functions cannot be unregistered
+const handleResize = () => {
+  isDesktop.value = window.innerWidth >= 1024
+}
+
 onMounted(() => {
   isDesktop.value = window.innerWidth >= 1024
-  window.addEventListener('resize', () => {
-    isDesktop.value = window.innerWidth >= 1024
-  })
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
 })
 
 const isVisible = computed(() => {

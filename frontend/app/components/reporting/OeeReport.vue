@@ -1,6 +1,5 @@
 <template>
   <div class="space-y-6">
-    <!-- Header removed -->
 
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -24,11 +23,11 @@
 
     <!-- OEE Trend Chart -->
     <div class="card">
-        <h3 class="font-semibold text-gray-700 mb-4">OEE Trend (Last 30 Days)</h3>
-        <div class="h-64">
-            <UiLineChart v-if="oeeChartData" :data="oeeChartData" />
-            <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">No sufficient data</div>
-        </div>
+      <h3 class="font-semibold text-gray-700 mb-4">OEE Trend ({{ periodLabel }})</h3>
+      <div class="h-64">
+        <UiLineChart v-if="oeeChartData" :data="oeeChartData" />
+        <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">No data for selected period</div>
+      </div>
     </div>
 
     <!-- Records Table -->
@@ -56,22 +55,27 @@
             </td>
           </tr>
           <tr v-if="records.length === 0">
-            <td colspan="6" class="text-center text-gray-500 py-8">No OEE records found</td>
+            <td colspan="6" class="text-center text-gray-500 py-8">No OEE records for selected period</td>
           </tr>
         </tbody>
       </table>
     </div>
-      <UiPagination 
-        v-if="records.length > pageSize"
-        v-model="currentPage" 
-        :total-items="records.length" 
-        :page-size="pageSize" 
-      />
+    <UiPagination
+      v-if="records.length > pageSize"
+      v-model="currentPage"
+      :total-items="records.length"
+      :page-size="pageSize"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { ChartData } from 'chart.js'
+import type { DateRange } from '~/components/ui/DateRangeFilter.vue'
+
+const props = defineProps<{
+  dateRange: DateRange
+}>()
 
 interface OeeRecord {
   id: number
@@ -87,6 +91,21 @@ interface OeeRecord {
 const { $api } = useApi()
 const records = ref<OeeRecord[]>([])
 const { formatDate } = useUtils()
+
+const presetLabels: Record<string, string> = {
+  today: 'Today',
+  last7: 'Last 7 Days',
+  last30: 'Last 30 Days',
+  thisMonth: 'This Month',
+  lastMonth: 'Last Month',
+}
+
+const periodLabel = computed(() => {
+  if (props.dateRange.preset === 'custom') {
+    return `${props.dateRange.start} – ${props.dateRange.end}`
+  }
+  return presetLabels[props.dateRange.preset] || 'Selected Period'
+})
 
 const avgOee = computed(() => {
   if (!records.value.length) return 0
@@ -126,35 +145,45 @@ function oeeColor(score: number) {
 
 async function fetchRecords() {
   try {
-    const res = await $api<{ data: OeeRecord[] }>('/reporting/oee')
-    records.value = res.data || []
-    
-    // Prepare Chart Data
-    if (records.value.length > 0) {
-        // Sort by date ascending
-        const sorted = [...records.value].sort((a, b) => new Date(a.record_date).getTime() - new Date(b.record_date).getTime())
-        
-        oeeChartData.value = {
-            labels: sorted.map(r => formatDate(r.record_date)),
-            datasets: [
-                { label: 'OEE', data: sorted.map(r => Number(r.oee_score)), borderColor: '#6366f1', backgroundColor: '#6366f1', tension: 0.3, pointRadius: 4 }, // Indigo
-                { label: 'Availability', data: sorted.map(r => Number(r.availability_score)), borderColor: '#3b82f6', backgroundColor: '#3b82f6', borderDash: [5, 5], hidden: true }, // Blue
-                { label: 'Performance', data: sorted.map(r => Number(r.performance_score)), borderColor: '#10b981', backgroundColor: '#10b981', borderDash: [5, 5], hidden: true }, // Emerald
-                { label: 'Quality', data: sorted.map(r => Number(r.quality_score)), borderColor: '#f59e0b', backgroundColor: '#f59e0b', borderDash: [5, 5], hidden: true }, // Amber
-            ]
-        }
-    } else {
-        oeeChartData.value = null
-    }
+    const query: Record<string, string | number> = { per_page: 1000 }
+    if (props.dateRange.start) query.start_date = props.dateRange.start
+    if (props.dateRange.end) query.end_date = props.dateRange.end
 
+    const res = await $api<{ data: OeeRecord[] }>('/reporting/oee', { query })
+    records.value = res.data || []
+    currentPage.value = 1
+
+    if (records.value.length > 0) {
+      const sorted = [...records.value].sort((a, b) => new Date(a.record_date).getTime() - new Date(b.record_date).getTime())
+
+      oeeChartData.value = {
+        labels: sorted.map(r => formatDate(r.record_date)),
+        datasets: [
+          { label: 'OEE', data: sorted.map(r => Number(r.oee_score)), borderColor: '#6366f1', backgroundColor: '#6366f1', tension: 0.3, pointRadius: 4 },
+          { label: 'Availability', data: sorted.map(r => Number(r.availability_score)), borderColor: '#3b82f6', backgroundColor: '#3b82f6', borderDash: [5, 5], hidden: true },
+          { label: 'Performance', data: sorted.map(r => Number(r.performance_score)), borderColor: '#10b981', backgroundColor: '#10b981', borderDash: [5, 5], hidden: true },
+          { label: 'Quality', data: sorted.map(r => Number(r.quality_score)), borderColor: '#f59e0b', backgroundColor: '#f59e0b', borderDash: [5, 5], hidden: true },
+        ],
+      }
+    } else {
+      oeeChartData.value = null
+    }
   } catch (e) {
-    console.error('Failed to fetch:', e)
+    console.error('Failed to fetch OEE records:', e)
   }
 }
 
-onMounted(fetchRecords)
-
-defineExpose({
-  fetchRecords
+onMounted(() => {
+  if (props.dateRange.start && props.dateRange.end) {
+    fetchRecords()
+  }
 })
+
+watch(() => props.dateRange, () => {
+  if (props.dateRange.start && props.dateRange.end) {
+    fetchRecords()
+  }
+}, { deep: true })
+
+defineExpose({ fetchRecords })
 </script>

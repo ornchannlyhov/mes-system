@@ -121,7 +121,7 @@
     />
 
     <UiSlideOver v-model="showModal" :title="editing ? 'Edit Equipment' : 'Add Equipment'">
-      <form @submit.prevent="save" class="space-y-4">
+      <form id="equipment-form" @submit.prevent="save" class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2">
             <label class="block text-sm font-medium text-gray-700 mb-1">Code</label>
@@ -140,16 +140,19 @@
             </select>
           </div>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editing" type="button" @click="clearEqForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="equipment-form" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Report Broken SlideOver -->
     <UiSlideOver v-model="showReportModal" title="Report Equipment Issue">
-      <form @submit.prevent="reportBroken" class="space-y-4">
+      <form id="report-form" @submit.prevent="reportBroken" class="space-y-4">
         <div class="bg-yellow-50 p-4 rounded-lg flex gap-3 text-yellow-700 text-sm mb-4">
           <Icon name="heroicons:exclamation-triangle" class="w-5 h-5 shrink-0" />
           <p>
@@ -173,18 +176,20 @@
           </select>
         </div>
 
-        <div class="flex justify-end gap-3 result mt-6">
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
           <button type="button" @click="showReportModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary bg-red-600 hover:bg-red-700 border-red-600" :disabled="reporting">
+          <button type="submit" form="report-form" class="btn-primary bg-red-600 hover:bg-red-700 border-red-600" :disabled="reporting">
             {{ reporting ? 'Reporting...' : 'Report Broken' }}
           </button>
         </div>
-      </form>
+      </template>
     </UiSlideOver>
 
     <!-- Schedule Maintenance SlideOver -->
     <UiSlideOver v-model="showScheduleModal" title="Schedule Maintenance">
-      <form @submit.prevent="scheduleMaintenance" class="space-y-6">
+      <form id="eq-schedule-form" @submit.prevent="scheduleMaintenance" class="space-y-6">
         <div class="p-3 bg-gray-50 rounded-lg">
           <p class="text-sm text-gray-600">Equipment: <span class="font-medium">{{ schedulingItem?.name }}</span></p>
         </div>
@@ -209,13 +214,15 @@
           <textarea v-model="scheduleForm.instructions" rows="3" class="input" placeholder="Describe the maintenance work..."></textarea>
         </div>
 
-        <div class="flex justify-end gap-3 mt-6">
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
           <button type="button" @click="showScheduleModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="scheduling">
+          <button type="submit" form="eq-schedule-form" class="btn-primary" :disabled="scheduling">
             {{ scheduling ? 'Scheduling...' : 'Create Schedule' }}
           </button>
         </div>
-      </form>
+      </template>
     </UiSlideOver>
 
     <!-- Delete Confirmation Modal -->
@@ -270,7 +277,10 @@ const scheduleForm = ref({
   instructions: ''
 })
 
-const form = ref({ code: '', name: '', status: 'operational' as 'operational' | 'maintenance' | 'broken' })
+const eqFormDefaults = { code: '', name: '', status: 'operational' as 'operational' | 'maintenance' | 'broken' }
+const eqCache = useFormCache('equipment', eqFormDefaults)
+const form = ref(eqCache.fresh())
+watch(form, (val) => { if (!editing.value) eqCache.persist(val) }, { deep: true })
 
 function statusIconClass(status: string) {
   return {
@@ -297,9 +307,14 @@ function openModal(eq?: Equipment) {
     form.value = { code: eq.code, name: eq.name, status: eq.status }
   } else {
     editing.value = null
-    form.value = { code: '', name: '', status: 'operational' }
+    form.value = eqCache.load()
   }
   showModal.value = true
+}
+
+function clearEqForm() {
+  eqCache.clear()
+  form.value = eqCache.fresh()
 }
 
 async function save() {
@@ -312,6 +327,7 @@ async function save() {
       await $api('/equipment', { method: 'POST', body: form.value })
       toast.success('Equipment created successfully')
     }
+    eqCache.clear()
     showModal.value = false
     await fetchEquipment(true)
   } catch (e: any) {

@@ -160,7 +160,7 @@
 
     <!-- Create/Edit BOM SlideOver -->
     <UiSlideOver v-model="showModal" :title="editing ? 'Edit BOM' : 'Create Bill of Materials'">
-      <form @submit.prevent="save" class="space-y-6">
+      <form id="bom-form" @submit.prevent="save" class="space-y-6">
         <!-- Basic Info -->
         <div class="grid grid-cols-12 gap-4">
           <div class="col-span-12">
@@ -292,11 +292,13 @@
           </div>
         </div>
 
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save BOM' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" @click="clearBomForm" class="btn-ghost">Clear</button>
+          <button type="submit" form="bom-form" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save BOM' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Detail SlideOver (75% width) -->
@@ -422,14 +424,17 @@ const showDeleteModal = ref(false)
 const deletingItem = ref<Bom | null>(null)
 const deleting = ref(false)
 
-const form = ref({
+const bomFormDefaults = {
   product_id: null as number | null,
   type: 'normal' as 'normal' | 'phantom',
   qty_produced: 1,
   is_active: true,
   lines: [] as BomLineForm[],
   operations: [] as OperationForm[],
-})
+}
+const bomCache = useFormCache('bom', bomFormDefaults)
+const form = ref(bomCache.fresh())
+watch(form, (val) => { if (!editing.value) bomCache.persist(val) }, { deep: true })
 
 
 
@@ -515,16 +520,14 @@ function openModal(bom?: Bom & { lines?: BomLine[], operations?: Operation[] }) 
     }
   } else {
     editing.value = null
-    form.value = {
-      product_id: null,
-      type: 'normal',
-      qty_produced: 1,
-      is_active: true,
-      lines: [],
-      operations: [],
-    }
+    form.value = bomCache.load()
   }
   showModal.value = true
+}
+
+function clearBomForm() {
+  bomCache.clear()
+  form.value = bomCache.fresh()
 }
 
 
@@ -536,20 +539,10 @@ function openDetail(bom: Bom) {
 async function save() {
   saving.value = true
   try {
-    const isTempId = (id: any) => typeof id === 'string' && id.startsWith('temp_')
-    const lines = form.value.lines.map((l, i) => ({
-      ...l,
-      id: isTempId(l.id) ? undefined : l.id,
-      sequence: i,
-    }))
     const payload = {
       ...form.value,
-      lines,
-      operations: form.value.operations.map((o, i) => ({
-        ...o,
-        sequence: i,
-        produces_bom_line_id: isTempId(o.produces_bom_line_id) ? null : o.produces_bom_line_id,
-      })),
+      lines: form.value.lines.map((l, i) => ({ ...l, sequence: i })),
+      operations: form.value.operations.map((o, i) => ({ ...o, sequence: i })),
     }
 
     if (editing.value) {
@@ -559,6 +552,7 @@ async function save() {
       await $api('/boms', { method: 'POST', body: payload })
       toast.success('BOM created successfully')
     }
+    bomCache.clear()
     showModal.value = false
     refresh(true)
   } catch (e: any) {

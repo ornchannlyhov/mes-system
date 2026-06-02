@@ -19,6 +19,13 @@ class CostEntryController extends BaseController
                 ['cost_type', 'manufacturing_order_id', 'product_id']
             );
 
+        if ($request->has('start_date')) {
+            $query->whereDate('created_at', '>=', $request->start_date);
+        }
+        if ($request->has('end_date')) {
+            $query->whereDate('created_at', '<=', $request->end_date);
+        }
+
         return $this->respondWithPagination(
             $query->orderBy('created_at', 'desc')->paginate($request->get('per_page', 50))
         );

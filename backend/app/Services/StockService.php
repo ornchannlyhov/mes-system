@@ -42,11 +42,8 @@ class StockService
                         throw new \InvalidArgumentException('Insufficient stock');
                     }
                     $stock->quantity -= $data['quantity'];
-
-                    // Record Cost Entry if this is related to a MO or Production
-                    // We need context to link it to an MO, which isn't in $data yet typically.
-                    // However, we can track value reduction generally or add optional context fields.
-                    $this->recordCost($data, 'material');
+                    // Cost entries are recorded by ManufacturingOrderService::complete() which has
+                    // full MO context. Recording here as well produces duplicate CostEntry rows.
                     break;
             }
 
@@ -71,23 +68,40 @@ class StockService
         });
     }
 
-    private function recordCost(array $data, string $type)
+    /**
+     * Find the best available stock location for a product and atomically reserve it.
+     * Combines selection and reservation in one locked transaction to prevent race conditions.
+     */
+    public function findAndReserve(int $productId, float $qtyNeeded): Stock
     {
-        // Only record cost if we have manufacturing context in data
-        if (isset($data['manufacturing_order_id'])) {
-            $product = \App\Models\Product::find($data['product_id']);
-            $cost = $product->cost ?? 0;
+        return DB::transaction(function () use ($productId, $qtyNeeded) {
+            // Single locked SELECT — no gap between "find" and "reserve" for concurrent requests
+            $stock = Stock::where('product_id', $productId)
+                ->whereRaw('(quantity - reserved_qty) >= ?', [$qtyNeeded])
+                ->lockForUpdate()
+                ->orderBy('quantity', 'desc')
+                ->first();
 
-            \App\Models\CostEntry::create([
-                'manufacturing_order_id' => $data['manufacturing_order_id'],
-                'product_id' => $data['product_id'],
-                'cost_type' => $type,
-                'quantity' => $data['quantity'],
-                'unit_cost' => $cost,
-                'total_cost' => $cost * $data['quantity'],
-                'notes' => 'Stock adjustment'
-            ]);
-        }
+            if (!$stock) {
+                // Partial stock — take the largest available block
+                $stock = Stock::where('product_id', $productId)
+                    ->whereRaw('(quantity - reserved_qty) > 0')
+                    ->lockForUpdate()
+                    ->orderBy('quantity', 'desc')
+                    ->first();
+            }
+
+            if (!$stock) {
+                $product = \App\Models\Product::withoutGlobalScopes()->find($productId);
+                $name = $product->name ?? "Product #{$productId}";
+                throw new \RuntimeException("Insufficient stock to reserve for component: {$name} (Required: {$qtyNeeded})");
+            }
+
+            $stock->reserved_qty += $qtyNeeded;
+            $stock->save();
+
+            return $stock;
+        });
     }
 
     /**

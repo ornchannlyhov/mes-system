@@ -200,7 +200,7 @@ export interface Operation {
     instructions?: string
     instruction_file_url?: string
     produces_bom_line_id?: number
-    producesBomLine?: BomLine
+    produces_bom_line?: BomLine
 
 }
 

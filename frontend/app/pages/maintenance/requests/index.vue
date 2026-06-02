@@ -99,8 +99,8 @@
     </div>
 
     <!-- SlideOver -->
-    <UiSlideOver v-model="showModal" title="New Maintenance Request">
-      <form @submit.prevent="save" class="space-y-6">
+    <UiSlideOver v-model="showModal" :title="editingRequest ? 'Edit Maintenance Request' : 'New Maintenance Request'">
+      <form id="request-form" @submit.prevent="save" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
           <textarea v-model="form.description" rows="3" class="input" required></textarea>
@@ -122,11 +122,14 @@
             <option value="critical">Critical</option>
           </select>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Submit' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editingRequest" type="button" @click="clearRequestForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="request-form" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : (editingRequest ? 'Update' : 'Submit') }}</button>
+        </div>
+      </template>
     </UiSlideOver>
     <!-- Delete Confirmation Modal -->
     <UiConfirmModal
@@ -166,7 +169,10 @@ const loading = ref(true)
 const editingRequest = ref<MaintenanceRequest | null>(null)
 const deletingRequest = ref<MaintenanceRequest | null>(null)
 
-const form = ref({ description: '', equipment_id: null as number | null, priority: 'normal', request_type: 'corrective' })
+const requestFormDefaults = { description: '', equipment_id: null as number | null, priority: 'normal', request_type: 'corrective' }
+const requestCache = useFormCache('maintenance-request', requestFormDefaults)
+const form = ref(requestCache.fresh())
+watch(form, (val) => { if (!editingRequest.value) requestCache.persist(val) }, { deep: true })
 
 async function fetchData(force = false) {
   loading.value = true
@@ -193,9 +199,14 @@ function openModal(req?: MaintenanceRequest) {
     }
   } else {
     editingRequest.value = null
-    form.value = { description: '', equipment_id: null, priority: 'normal', request_type: 'corrective' }
+    form.value = requestCache.load()
   }
   showModal.value = true
+}
+
+function clearRequestForm() {
+  requestCache.clear()
+  form.value = requestCache.fresh()
 }
 
 async function save() {
@@ -208,6 +219,7 @@ async function save() {
         await $api('/maintenance/requests', { method: 'POST', body: form.value })
         toast.success('Request submitted successfully')
     }
+    requestCache.clear()
     showModal.value = false
     await fetchData(true)
   } catch (e: any) {

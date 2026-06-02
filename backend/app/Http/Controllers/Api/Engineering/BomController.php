@@ -26,7 +26,7 @@ class BomController extends BaseController
                 'product:id,name,code,image_url',
                 'lines:id,bom_id,product_id,quantity,sequence',
                 'lines.product:id,name,code',
-                'operations:id,bom_id,name,work_center_id,duration_minutes,sequence,produces_bom_line_id',
+                'operations:id,bom_id,name,work_center_id,duration_minutes,sequence,produces_bom_line_id,needs_quality_check,instruction_file_url',
                 'operations.workCenter:id,name,code',
                 'operations.producesBomLine:id,product_id,quantity',
                 'operations.producesBomLine.product:id,name,code,uom'

@@ -107,7 +107,7 @@
 
      <!-- SlideOver -->
     <UiSlideOver v-model="showModal" :title="isEditing ? 'Edit User' : 'Create New User'">
-      <form @submit.prevent="save" class="space-y-6">
+      <form id="user-form" @submit.prevent="save" class="space-y-6">
         <div class="flex flex-col items-center gap-4 mb-6">
             <div class="relative group">
                 <div class="w-24 h-24 rounded-full flex items-center justify-center overflow-hidden border border-gray-200 bg-gray-50">
@@ -180,13 +180,16 @@
              </div>
         </div>
 
-        <div class="flex justify-end gap-3 result mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!isEditing" type="button" @click="clearUserForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="user-form" class="btn-primary" :disabled="saving">
             {{ saving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Create User') }}
           </button>
         </div>
-      </form>
+      </template>
     </UiSlideOver>
     
     <!-- Detail SlideOver -->
@@ -328,6 +331,8 @@ const paginatedUsers = computed(() => {
 
 const isEditing = computed(() => !!selectedUser.value)
 
+const userFormDefaults = { name: '', email: '', role_id: null as number | null }
+const userCache = useFormCache('user', userFormDefaults)
 const form = ref({
     name: '',
     email: '',
@@ -337,6 +342,8 @@ const form = ref({
     avatar: null as File | null,
     remove_avatar: false
 })
+watch(() => ({ name: form.value.name, email: form.value.email, role_id: form.value.role_id }),
+  (val) => { if (!isEditing.value) userCache.persist(val) }, { deep: true })
 const showPassword = ref(false)
 const previewUrl = ref('')
 
@@ -368,9 +375,16 @@ async function fetchData(force = false) {
 
 function createUser() {
     selectedUser.value = null
-    form.value = { name: '', email: '', password: '', role_id: null, avatar_url: '', avatar: null, remove_avatar: false }
+    const cached = userCache.load()
+    form.value = { name: cached.name, email: cached.email, password: '', role_id: cached.role_id, avatar_url: '', avatar: null, remove_avatar: false }
     previewUrl.value = ''
     showModal.value = true
+}
+
+function clearUserForm() {
+    userCache.clear()
+    form.value = { name: '', email: '', password: '', role_id: null, avatar_url: '', avatar: null, remove_avatar: false }
+    previewUrl.value = ''
 }
 
 function viewUser(user: User) {
@@ -464,6 +478,7 @@ async function save() {
             body: formData
         })
         toast.success('User created')
+      userCache.clear()
     }
     showModal.value = false
     await fetchData(true)

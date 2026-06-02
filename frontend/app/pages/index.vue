@@ -6,7 +6,8 @@
         <h1 class="page-title">Dashboard</h1>
         <p class="text-gray-500 mt-1 hidden sm:block">Overview of manufacturing operations</p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex items-center gap-2">
+        <UiDateRangeFilter v-model="dateRange" default-preset="last7" />
         <button class="btn-primary" @click="refreshData" :disabled="refreshing">
           <Icon name="heroicons:arrow-path" class="w-4 h-4" :class="{ 'animate-spin': refreshing }" />
           <span class="hidden sm:inline">{{ refreshing ? 'Refreshing...' : 'Refresh' }}</span>
@@ -44,8 +45,8 @@
           color="primary"
         />
         <UiStatsCard
-          title="Completed Today"
-          :value="stats.completedToday"
+          :title="`Completed (${periodLabel})`"
+          :value="stats.completedInPeriod"
           icon="heroicons:check-circle"
           color="success"
         />
@@ -68,9 +69,9 @@
 
         <!-- Charts Row -->
         <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Weekly Production -->
+            <!-- Production chart (period-filtered) -->
             <div class="card">
-                <h3 class="font-semibold text-gray-700 mb-4">Weekly Production</h3>
+                <h3 class="font-semibold text-gray-700 mb-4">Production – {{ periodLabel }}</h3>
                 <div class="h-48">
                     <UiBarChart v-if="productionChartData" :data="productionChartData" :options="{ plugins: { legend: { display: false } } }" />
                     <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">No data</div>
@@ -187,16 +188,18 @@
     </div>
 
     <!-- OEE Report Tab -->
-    <ReportingOeeReport v-if="activeTab === 'oee'" ref="oeeReportRef" />
+    <ReportingOeeReport v-if="activeTab === 'oee'" ref="oeeReportRef" :date-range="dateRange" />
 
     <!-- Cost Report Tab -->
-    <ReportingCostReport v-if="activeTab === 'cost'" ref="costReportRef" />
+    <ReportingCostReport v-if="activeTab === 'cost'" ref="costReportRef" :date-range="dateRange" />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { ManufacturingOrder, WorkOrder } from '~/types/models'
 import type { ChartData } from 'chart.js'
+import type { DateRange } from '~/components/ui/DateRangeFilter.vue'
+import { useExecutionStore } from '~/stores/execution'
 
 const { $api } = useApi()
 const { hasPermission, hasRole } = usePermissions()
@@ -221,141 +224,161 @@ const costReportRef = ref()
 // Stats
 const stats = ref({
   activeMOs: 0,
-  completedToday: 0,
+  completedInPeriod: 0,
   activeWOs: 0,
   equipmentIssues: 0,
 })
 
-// Recent MOs
-const recentMOs = ref<ManufacturingOrder[]>([])
+// Loaded data
+const allMOs = ref<ManufacturingOrder[]>([])
+const allWOs = ref<WorkOrder[]>([])
+
+// Recent MOs (always top 10 of all loaded)
+const recentMOs = computed(() => allMOs.value.slice(0, 10))
+
+// Period filter
+const dateRange = ref<DateRange>({ start: '', end: '', preset: 'last7' })
+
+const presetLabels: Record<string, string> = {
+  today: 'Today',
+  last7: 'Last 7 Days',
+  last30: 'Last 30 Days',
+  thisMonth: 'This Month',
+  lastMonth: 'Last Month',
+}
+const periodLabel = computed(() => {
+  if (dateRange.value.preset === 'custom') {
+    return `${dateRange.value.start} – ${dateRange.value.end}`
+  }
+  return presetLabels[dateRange.value.preset] || 'Selected Period'
+})
 
 // Chart Data
 const productionChartData = ref<ChartData<'bar'> | null>(null)
 const statusChartData = ref<ChartData<'doughnut'> | null>(null)
 const qualityChartData = ref<ChartData<'doughnut'> | null>(null)
 
-import { useExecutionStore } from '~/stores/execution'
+function buildCharts() {
+  const { start, end } = dateRange.value
+  if (!start || !end || !allMOs.value.length && !allWOs.value.length) {
+    productionChartData.value = null
+    return
+  }
+
+  // 1. Production chart — one bar per day in the selected range
+  const productionMap = new Map<string, number>()
+  const labels: string[] = []
+  const startDate = new Date(start + 'T00:00:00')
+  const endDate = new Date(end + 'T00:00:00')
+  const d = new Date(startDate)
+  while (d <= endDate) {
+    const ds = d.toISOString().split('T')[0]!
+    productionMap.set(ds, 0)
+    // Use short label: weekday for ≤7 days, otherwise "Mon DD"
+    const daySpan = Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1
+    const label = daySpan <= 7
+      ? d.toLocaleDateString('en-US', { weekday: 'short' })
+      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    labels.push(label)
+    d.setDate(d.getDate() + 1)
+  }
+
+  allMOs.value.forEach(mo => {
+    const dateRaw = mo.actual_end || mo.created_at || ''
+    const date = dateRaw.split('T')[0]
+    if (date && productionMap.has(date)) {
+      productionMap.set(date, (productionMap.get(date) || 0) + Number(mo.qty_produced || 0))
+    }
+  })
+
+  productionChartData.value = {
+    labels,
+    datasets: [{
+      label: 'Units Produced',
+      data: Array.from(productionMap.values()),
+      backgroundColor: '#6366f1',
+      borderRadius: 6,
+      hoverBackgroundColor: '#4f46e5',
+    }],
+  }
+
+  // Completed in period stat
+  stats.value.completedInPeriod = allMOs.value.filter(mo => {
+    if (mo.status !== 'done') return false
+    const date = (mo.actual_end || mo.created_at || '').split('T')[0] || ''
+    return date >= start && date <= end
+  }).length
+
+  // 2. Order Status (all-time current state)
+  const statusCounts = { ready: 0, in_progress: 0, done: 0, other: 0 }
+  allMOs.value.forEach(mo => {
+    if (['scheduled', 'confirmed', 'ready'].includes(mo.status)) statusCounts.ready++
+    else if (mo.status === 'in_progress') statusCounts.in_progress++
+    else if (mo.status === 'done') statusCounts.done++
+    else statusCounts.other++
+  })
+
+  statusChartData.value = {
+    labels: ['Ready', 'In Progress', 'Done', 'Other'],
+    datasets: [{
+      data: [statusCounts.ready, statusCounts.in_progress, statusCounts.done, statusCounts.other],
+      backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#94a3b8'],
+      borderWidth: 2,
+      borderColor: '#ffffff',
+      hoverOffset: 4,
+    }],
+  }
+
+  // 3. Quality Yield (all-time)
+  const passCount = allWOs.value.filter(w => w.qa_status === 'pass').length
+  const failCount = allWOs.value.filter(w => w.qa_status === 'fail').length
+  const totalChecks = passCount + failCount
+
+  qualityChartData.value = totalChecks > 0
+    ? {
+        labels: ['Pass', 'Fail'],
+        datasets: [{
+          data: [passCount, failCount],
+          backgroundColor: ['#10b981', '#f43f5e'],
+          borderWidth: 2,
+          borderColor: '#ffffff',
+          hoverOffset: 4,
+        }],
+      }
+    : null
+}
+
+// Rebuild charts whenever the period changes (data already loaded)
+watch(dateRange, buildCharts, { deep: true })
+
 const executionStore = useExecutionStore()
+
 async function fetchData() {
   try {
     const [moRes, woRes, mrRes] = await Promise.all([
-         $api<any>('/manufacturing-orders', { query: { per_page: 1 } }),
-         $api<any>('/work-orders', { query: { per_page: 1 } }),
-         $api<any>('/maintenance/requests', { query: { per_page: 1 } }),
+      $api<any>('/manufacturing-orders', { query: { per_page: 1 } }),
+      $api<any>('/work-orders', { query: { per_page: 1 } }),
+      $api<any>('/maintenance/requests', { query: { per_page: 1 } }),
     ])
 
-    // Wait for store to ensure list is populated for charts/table
     await Promise.all([
-         executionStore.fetchManufacturingOrders(),
-         executionStore.fetchWorkOrders(),
+      executionStore.fetchManufacturingOrders(),
+      executionStore.fetchWorkOrders(),
     ])
-    
-    // Access data from store
-    const allMOs = executionStore.manufacturingOrders as ManufacturingOrder[]
-    const allWOs = executionStore.workOrders as WorkOrder[]
 
-    recentMOs.value = allMOs.slice(0, 10)
+    allMOs.value = executionStore.manufacturingOrders as ManufacturingOrder[]
+    allWOs.value = executionStore.workOrders as WorkOrder[]
 
-
-    // Calculate stats using backend counts for accuracy
+    // Real-time status counts from backend
     const moCounts = moRes.meta?.counts || {}
     stats.value.activeMOs = (moCounts.confirmed || 0) + (moCounts.in_progress || 0)
-    
-    const today = new Date().toISOString().split('T')[0] || ''
-    // "Completed Today" still needs client-side or separate API if not provided in counts
-    // For now, if < 100, the store data is fine. If > 100, we might need a daily stats endpoint.
-    stats.value.completedToday = allMOs.filter(mo => 
-       mo.status === 'done' && ((mo.actual_end || '').startsWith(today) || (mo.created_at || '').startsWith(today))
-    ).length
-    
+
     const woCounts = woRes.meta?.counts || {}
     stats.value.activeWOs = (woCounts.ready || 0) + (woCounts.in_progress || 0)
 
-    // Use backend-provided active_count for maintenance requests
     stats.value.equipmentIssues = mrRes.meta?.active_count || 0
 
-    // --- Chart Prep ---
-
-    // 1. Weekly Production (Last 7 Days from Date)
-    const productionMap = new Map<string, number>()
-    const labels = []
-    
-    // Init last 7 days
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date()
-        d.setDate(d.getDate() - i)
-        const dateStr = d.toISOString().split('T')[0] || ''
-        const labelStr = d.toLocaleDateString('en-US', { weekday: 'short' })
-        productionMap.set(dateStr, 0)
-        labels.push(labelStr) // Mon, Tue...
-    }
-    
-    // Sum qty_produced for MOs done in this range
-    allMOs.forEach(mo => {
-        const dateRaw = mo.actual_end || mo.created_at || ''
-        const date = dateRaw.split('T')[0]
-        if (date && productionMap.has(date)) {
-            productionMap.set(date, (productionMap.get(date) || 0) + Number(mo.qty_produced || 0))
-        }
-    })
-
-    productionChartData.value = {
-        labels: labels,
-        datasets: [{
-            label: 'Units Produced',
-            data: Array.from(productionMap.values()),
-            backgroundColor: '#6366f1', // Indigo-500
-            borderRadius: 6,
-            hoverBackgroundColor: '#4f46e5', // Indigo-600
-        }]
-    }
-
-    // 2. Order Status
-    const statusCounts = { ready: 0, in_progress: 0, done: 0, other: 0 }
-    allMOs.forEach(mo => {
-        if (['scheduled', 'confirmed', 'ready'].includes(mo.status)) statusCounts.ready++
-        else if (mo.status === 'in_progress') statusCounts.in_progress++
-        else if (mo.status === 'done') statusCounts.done++
-        else statusCounts.other++
-    })
-    
-    statusChartData.value = {
-        labels: ['Ready', 'In Progress', 'Done', 'Other'],
-        datasets: [{
-            data: [statusCounts.ready, statusCounts.in_progress, statusCounts.done, statusCounts.other],
-            backgroundColor: [
-                '#3b82f6', // Blue-500
-                '#8b5cf6', // Violet-500
-                '#10b981', // Emerald-500
-                '#94a3b8'  // Slate-400
-            ],
-            borderWidth: 2,
-            borderColor: '#ffffff',
-            hoverOffset: 4
-        }]
-    }
-
-    // 3. Quality Yield (From QA Counts)
-    // Client-side calculation from store data
-    const passCount = allWOs.filter(w => w.qa_status === 'pass').length
-    const failCount = allWOs.filter(w => w.qa_status === 'fail').length
-    const totalChecks = passCount + failCount
-
-    if (totalChecks > 0) {
-        qualityChartData.value = {
-            labels: ['Pass', 'Fail'],
-            datasets: [{
-                data: [passCount, failCount],
-                backgroundColor: ['#10b981', '#f43f5e'], // Emerald-500, Rose-500
-                borderWidth: 2,
-                borderColor: '#ffffff',
-                hoverOffset: 4
-            }]
-        }
-    } else {
-        qualityChartData.value = null
-    }
-
+    buildCharts()
   } catch (e) {
     console.error('Failed to fetch dashboard data:', e)
   }
@@ -378,7 +401,6 @@ async function refreshData() {
   }
 }
 
-// Load on mount
 onMounted(() => {
   fetchData()
 })

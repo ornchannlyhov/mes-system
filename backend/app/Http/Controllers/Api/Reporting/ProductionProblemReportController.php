@@ -18,10 +18,12 @@ class ProductionProblemReportController extends Controller
             SUM(quantity) as total_quantity
         ')->first();
 
-        // Calculate total scrap cost (requires join with products)
-        // Since cost is not stored on scrap, we multiply quantity * product_cost
-        $totalScrapCost = Scrap::join('products', 'scraps.product_id', '=', 'products.id')
-            ->sum(DB::raw('scraps.quantity * products.cost'));
+        // Raw subquery bypasses the ScopeByOrganization global scope on Product, which would
+        // otherwise silently exclude org-scoped products from the Eloquent join and undercount cost.
+        $totalScrapCost = Scrap::join(
+            DB::raw('(SELECT id, cost FROM products) AS p'),
+            'scraps.product_id', '=', 'p.id'
+        )->sum(DB::raw('scraps.quantity * p.cost'));
 
         // Top Scrap Reason
         $topReason = Scrap::select('reason', DB::raw('COUNT(*) as count'))

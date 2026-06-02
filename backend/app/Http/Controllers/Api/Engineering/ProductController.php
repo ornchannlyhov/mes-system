@@ -6,10 +6,13 @@ use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Engineering\StoreProductRequest;
 use App\Http\Requests\Engineering\UpdateProductRequest;
 use App\Models\Product;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 
 class ProductController extends BaseController
 {
+    public function __construct(protected StockService $stockService) {}
+
     public function index(Request $request)
     {
         $query = Product::select([
@@ -54,7 +57,20 @@ class ProductController extends BaseController
             $validated['image_url'] = $path;
         }
 
-        $product = Product::create($validated);
+        $initialQty = (float) ($validated['initial_qty'] ?? 0);
+        $locationId = $validated['location_id'] ?? null;
+
+        $product = Product::create(\Illuminate\Support\Arr::except($validated, ['initial_qty', 'location_id']));
+
+        if ($initialQty > 0 && $locationId) {
+            $this->stockService->adjustStock([
+                'product_id'  => $product->id,
+                'location_id' => $locationId,
+                'quantity'    => $initialQty,
+                'reason'      => 'initial',
+                'notes'       => "Initial stock for {$product->name}",
+            ]);
+        }
 
         return $this->success($product, [], 201);
     }

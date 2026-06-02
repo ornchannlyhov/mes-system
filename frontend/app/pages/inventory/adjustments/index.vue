@@ -125,7 +125,7 @@
 
     <!-- Create/Edit Adjustment SlideOver -->
     <UiSlideOver v-model="showModal" :title="editingItem ? 'Edit Stock Adjustment' : 'New Stock Adjustment'">
-      <form @submit.prevent="save" class="space-y-6">
+      <form id="adjustment-form" @submit.prevent="save" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Product *</label>
           <UiSearchableSelect
@@ -224,12 +224,13 @@
               />
             </label>
           </div>
-          <div v-if="uploadedFile" class="mt-2 flex items-center gap-2 text-sm">
+          <div v-if="uploadedFile || isFileUrl(form.reference)" class="mt-2 flex items-center gap-2 text-sm">
             <Icon name="heroicons:document" class="w-4 h-4 text-primary-600" />
-            <span class="text-gray-700">{{ uploadedFile.name }}</span>
-            <button type="button" @click="removeFile" class="text-red-600 hover:underline">
-              Remove
-            </button>
+            <a v-if="isFileUrl(form.reference)" :href="getImageUrl(getFileUrl(form.reference))" target="_blank" class="text-primary-600 hover:underline">
+              {{ uploadedFile?.name || 'View attached file' }}
+            </a>
+            <span v-else class="text-gray-700">{{ uploadedFile?.name }}</span>
+            <button type="button" @click="removeFile" class="text-red-600 hover:underline">Remove</button>
           </div>
           <p class="text-xs text-gray-500 mt-1">Upload a document or enter text reference</p>
         </div>
@@ -237,11 +238,14 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
           <textarea v-model="form.notes" rows="3" class="input" placeholder="Optional notes..."></textarea>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save Adjustment' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editingItem" type="button" @click="clearAdjForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="adjustment-form" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save Adjustment' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Delete Confirmation Modal -->
@@ -328,15 +332,10 @@ const tabs = [
   { label: 'Manufacturing', value: 'manufacturing' },
 ]
 
-const form = ref({
-  product_id: null as number | null,
-  location_id: null as number | null,
-  lot_id: null as number | null,
-  quantity: 0,
-  reason: '',
-  reference: '',
-  notes: '',
-})
+const adjFormDefaults = { product_id: null as number | null, location_id: null as number | null, lot_id: null as number | null, quantity: 0, reason: '', reference: '', notes: '' }
+const adjCache = useFormCache('adjustment', adjFormDefaults)
+const form = ref(adjCache.fresh())
+watch(form, (val) => { if (!editingItem.value) adjCache.persist(val) }, { deep: true })
 
 const selectedProduct = computed(() => 
   products.value.find(p => p.id === form.value.product_id)
@@ -482,51 +481,44 @@ function openModal(adj?: StockAdjustment) {
     onProductChange()
   } else {
     editingItem.value = null
-    form.value = {
-      product_id: null,
-      location_id: null,
-      lot_id: null,
-      quantity: 0,
-      reason: '',
-      reference: '',
-      notes: '',
-    }
-    uploadedFile.value = null
+    form.value = adjCache.load()
+    uploadedFile.value = null  // File object can't be restored; link shown from form.reference
   }
   showModal.value = true
 }
 
-function handleFileUpload(event: Event) {
+function clearAdjForm() {
+  adjCache.clear()
+  uploadedFile.value = null
+  form.value = adjCache.fresh()
+}
+
+async function handleFileUpload(event: Event) {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
-  if (file) {
-    uploadedFile.value = file
-    form.value.reference = ''
+  if (!file) return
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await $api<{ path: string }>('/upload', { method: 'POST', body: fd })
+    form.value.reference = res.path  // cached automatically via watch
+    uploadedFile.value = file        // keep for display only
+    toast.success('File uploaded')
+  } catch {
+    toast.error('File upload failed')
   }
 }
 
 function removeFile() {
   uploadedFile.value = null
+  form.value.reference = ''
 }
 
 async function save() {
   saving.value = true
   try {
-    let referenceValue = form.value.reference
-    
-    // Upload file if present
-    if (uploadedFile.value) {
-      const formData = new FormData()
-      formData.append('file', uploadedFile.value)
-      
-      const uploadRes = await $api<{ path: string }>('/upload', { 
-        method: 'POST', 
-        body: formData 
-      })
-      referenceValue = uploadRes.path
-    }
-    
-    const payload = { ...form.value, reference: referenceValue }
+    // File already uploaded eagerly in handleFileUpload; form.reference has the path
+    const payload = { ...form.value }
     
     if (editingItem.value) {
       await $api(`/stock-adjustments/${editingItem.value.id}`, { method: 'PUT', body: payload })
@@ -535,6 +527,7 @@ async function save() {
       await $api('/stock-adjustments', { method: 'POST', body: payload })
       toast.success('Stock adjusted successfully')
     }
+    adjCache.clear()
     showModal.value = false
     uploadedFile.value = null
     await fetchData(true)

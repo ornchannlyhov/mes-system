@@ -17,7 +17,7 @@
         All <span :class="['ml-1 text-xs px-1.5 py-0.5 rounded-full', filters.status === '' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-600']">{{ counts.all || total }}</span>
       </button>
       <button 
-        v-for="status in ['draft', 'confirmed', 'in_progress', 'done', 'scheduled']" 
+        v-for="status in ['confirmed', 'in_progress', 'done', 'scheduled']"
         :key="status"
         @click="filters.status = status" 
         :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize whitespace-nowrap', filters.status === status ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
@@ -26,7 +26,6 @@
         <span 
           :class="[
             'ml-1 text-xs px-1.5 py-0.5 rounded-full', 
-            status === 'draft' ? 'bg-gray-100 text-gray-700' :
             status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
             status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
             status === 'done' ? 'bg-green-100 text-green-700' :
@@ -211,8 +210,8 @@
               <Icon name="heroicons:clipboard-document-list" class="w-4 h-4 text-gray-400" />
               <span>
                 Qty: {{ wo.quantity_expected || 0 }}
-                <span v-if="wo.operation?.producesBomLine?.product">
-                  {{ wo.operation.producesBomLine.product.uom || 'units' }} of {{ wo.operation.producesBomLine.product.name }}
+                <span v-if="wo.operation?.produces_bom_line?.product">
+                  {{ wo.operation.produces_bom_line.product.uom || 'units' }} of {{ wo.operation.produces_bom_line.product.name }}
                 </span>
                 <span v-else>
                   {{ selectedMo?.product?.uom || 'units' }}
@@ -387,24 +386,29 @@
 
     <!-- Finish Modal -->
     <UiSlideOver v-model="showFinishModal" title="Complete Work Order" width="sm:w-[400px]">
-      <form @submit.prevent="confirmFinish" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Quantity Produced</label>
-          <input v-model.number="finishForm.quantity" type="number" step="0.0001" class="input" required min="0" />
-          <p class="text-xs text-gray-500 mt-1">Enter the actual quantity produced in this step.</p>
+      <form id="finish-form" @submit.prevent="confirmFinish" class="space-y-4">
+        <div v-if="finishingWo" class="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+          <span class="font-medium text-gray-800">{{ finishingWo.operation?.name }}</span>
+          <span class="mx-2 text-gray-400">·</span>
+          Expected: <strong>{{ Number(finishingWo.quantity_expected) }}</strong>
         </div>
-        <div class="flex justify-end gap-3 pt-4">
-          <button type="button" @click="showFinishModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="processingId === finishingWo?.id">
-            Complete
-          </button>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Actual Quantity Produced</label>
+          <input v-model.number="finishForm.quantity" type="number" step="0.0001" class="input" required min="0" />
+          <p class="text-xs text-gray-400 mt-1">Pre-filled from expected qty. Change only if actual differs.</p>
         </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" @click="showFinishModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="finish-form" class="btn-primary" :disabled="processingId === finishingWo?.id">Complete</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- QA Modal -->
     <UiSlideOver v-model="showQaModal" title="Quality Check" width="sm:w-[400px]">
-      <form @submit.prevent="submitQa" class="space-y-6">
+      <form id="qa-form" @submit.prevent="submitQa" class="space-y-6">
           <!-- Status Selection -->
           <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">Result</label>
@@ -439,13 +443,13 @@
               ></textarea>
           </div>
 
-          <div class="flex justify-end gap-3 pt-4 border-t">
-               <button type="button" @click="showQaModal = false" class="btn-ghost">Cancel</button>
-                <button type="submit" class="btn-primary">
-                  Save Check
-                </button>
-          </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" @click="showQaModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="qa-form" class="btn-primary">Save Check</button>
+        </div>
+      </template>
     </UiSlideOver>
   </div>
 </template>
@@ -472,10 +476,9 @@ const allWorkOrders = computed(() => executionStore.workOrders as WorkOrder[])
 
 // Client-side Counts (MO status counts)
 const counts = computed<Record<string, number>>(() => {
-  const list = mos.value
+  const list = mos.value.filter(m => m.status !== 'draft')
   return {
     all: list.length,
-    draft: list.filter(m => m.status === 'draft').length,
     confirmed: list.filter(m => m.status === 'confirmed').length,
     in_progress: list.filter(m => m.status === 'in_progress').length,
     done: list.filter(m => m.status === 'done').length,
@@ -485,7 +488,8 @@ const counts = computed<Record<string, number>>(() => {
 
 // Filtered & Sorted Items
 const filteredItems = computed(() => {
-  let result = mos.value
+  // Work orders only exist on confirmed/in_progress/done/scheduled MOs — exclude draft
+  let result = mos.value.filter(m => m.status !== 'draft')
 
   // Status Filter
   if (filters.value.status) {
@@ -541,9 +545,8 @@ async function openMoDetail(mo: ManufacturingOrder) {
   selectedMo.value = mo
   showDetailModal.value = true
   loadingWos.value = true
-  
+
   try {
-    // Get WOs for this MO from the store data
     moWorkOrders.value = allWorkOrders.value
       .filter(w => w.manufacturing_order_id === mo.id)
       .sort((a, b) => (a.operation?.sequence || a.sequence || 0) - (b.operation?.sequence || b.sequence || 0))
@@ -613,7 +616,7 @@ const finishForm = ref({ quantity: 0 })
 async function openFinishModal(wo: WorkOrder) {
   finishingWo.value = wo
   // Default quantity to target if not already set
-  finishForm.value = { quantity: Number(wo.manufacturing_order?.qty_to_produce || 0) }
+  finishForm.value = { quantity: Number(wo.quantity_expected || wo.manufacturing_order?.qty_to_produce || 0) }
   
   if (wo.status === 'in_progress') {
     processingId.value = wo.id

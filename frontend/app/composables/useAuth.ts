@@ -105,10 +105,8 @@ export function useAuth() {
         token.value = null
         tokenCookie.value = null
 
-        // Reset all stores to clear cached data
-        // We call them here; Nuxt 3 auto-imports stores from the stores/ directory
+        // Reset module stores to clear cached data on logout
         try {
-            useAuthStore().$reset()
             useAdminStore().$reset()
             useExecutionStore().$reset()
             useInventoryStore().$reset()

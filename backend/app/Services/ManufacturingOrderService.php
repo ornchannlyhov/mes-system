@@ -52,14 +52,21 @@ class ManufacturingOrderService
     {
         $operations = $mo->bom->operations()->orderBy('sequence')->get();
 
+        // Pre-load BOM lines indexed by sequence for O(1) lookup
+        $mo->bom->loadMissing('lines');
+        $bomLinesBySequence = $mo->bom->lines->keyBy('sequence');
+
         foreach ($operations as $operation) {
-            // Calculate quantity expected based on what the operation produces
+            // Calculate quantity expected based on what the operation produces.
+            // Priority: explicit produces_bom_line_id → same-sequence BOM line → MO qty (finished product).
             if ($operation->produces_bom_line_id) {
-                // This operation produces a component - use BOM line quantity
                 $bomLine = $operation->producesBomLine;
                 $quantityExpected = ($bomLine->quantity * $mo->qty_to_produce) / $mo->bom->qty_produced;
+            } elseif ($bomLinesBySequence->has($operation->sequence)) {
+                $bomLine = $bomLinesBySequence->get($operation->sequence);
+                $quantityExpected = ($bomLine->quantity * $mo->qty_to_produce) / $mo->bom->qty_produced;
             } else {
-                // Default: operation produces the finished product
+                // Assembly / finishing ops that produce the finished product
                 $quantityExpected = $mo->qty_to_produce;
             }
 
@@ -73,7 +80,8 @@ class ManufacturingOrderService
             ]);
         }
 
-        // Reserve Stock for Components
+        // Reserve Stock for Components — findAndReserve() selects and locks in one atomic step,
+        // preventing a race condition where two concurrent MOs claim the same stock.
         $mo->load('consumptions.product');
         foreach ($mo->consumptions as $consumption) {
             // If already reserved, skip to avoid double reservation
@@ -81,27 +89,15 @@ class ManufacturingOrderService
                 continue;
             }
 
-            // Find best stock for this component
-            $stock = $this->findBestStock($consumption->product_id, $consumption->qty_planned);
+            $stock = $this->stockService->findAndReserve(
+                $consumption->product_id,
+                $consumption->qty_planned
+            );
 
-            if ($stock) {
-                // Update consumption with location/lot
-                $consumption->update([
-                    'location_id' => $stock->location_id,
-                    'lot_id' => $stock->lot_id
-                ]);
-
-                $this->stockService->reserve(
-                    $consumption->product_id,
-                    $stock->location_id,
-                    $consumption->qty_planned,
-                    $stock->lot_id
-                );
-            } else {
-                // Enforce stock reservation requirement for production components.
-                $productName = $consumption->product->name ?? 'Product #' . $consumption->product_id;
-                throw new \RuntimeException("Insufficient stock to reserve for component: {$productName} (Required: {$consumption->qty_planned})");
-            }
+            $consumption->update([
+                'location_id' => $stock->location_id,
+                'lot_id' => $stock->lot_id,
+            ]);
         }
     }
 
@@ -227,35 +223,6 @@ class ManufacturingOrderService
     }
 
     /**
-     * Find best stock record for a product (simplistic strategy: largest stock first)
-     */
-    protected function findBestStock(int $productId, float $qtyNeeded): ?\App\Models\Stock
-    {
-        // 1. Try to find stock with enough quantity (Lot or No Lot)
-        $stock = \App\Models\Stock::where('product_id', $productId)
-            ->where('quantity', '>=', $qtyNeeded)
-            ->orderBy('quantity', 'desc')
-            ->first();
-
-        if ($stock) {
-            return $stock;
-        }
-
-        // 2. Try to find any stock > 0
-        $stock = \App\Models\Stock::where('product_id', $productId)
-            ->where('quantity', '>', 0)
-            ->orderBy('quantity', 'desc')
-            ->first();
-
-        if ($stock) {
-            return $stock;
-        }
-
-        // 3. Fallback: No stock found (can't reserve what we don't have)
-        return null;
-    }
-
-    /**
      * Start manufacturing order
      */
     public function start(ManufacturingOrder $mo): ManufacturingOrder
@@ -291,11 +258,11 @@ class ManufacturingOrderService
             $locationId = $data['location_id'] ?? null;
 
             if (!$locationId) {
-                // Try to find a sensible default location (e.g. "Finished Goods" or just any internal location)
-                $locationId = \App\Models\Location::where('type', 'internal')
-                    ->where('name', 'like', '%Finished%')
-                    ->value('id') 
-                    ?? \App\Models\Location::where('type', 'internal')->value('id');
+                // Fall back: prefer a warehouse location with "Finished" in the name, then any warehouse
+                $locationId = \App\Models\Location::where('type', 'warehouse')
+                    ->where('name', 'ilike', '%Finished%')
+                    ->value('id')
+                    ?? \App\Models\Location::whereIn('type', ['warehouse', 'internal'])->value('id');
             }
 
             $mo->update([

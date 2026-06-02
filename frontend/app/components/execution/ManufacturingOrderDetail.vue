@@ -38,9 +38,9 @@
             >
             Start Production
             </button>
-            <button 
-            v-if="mo.status === 'in_progress'" 
-            @click="completeOrder" 
+            <button
+            v-if="mo.status === 'in_progress'"
+            @click="openCompleteModal"
             class="btn-secondary"
             :disabled="actionLoading"
             >
@@ -385,6 +385,32 @@
 
   <UiImagePreview v-model="showImagePreview" :src="previewImage.src" :alt="previewImage.alt" />
   
+  <!-- Complete Order Modal -->
+  <UiSlideOver v-model="showCompleteModal" title="Complete Manufacturing Order" width="sm:w-[400px]">
+    <form id="complete-order-form" @submit.prevent="completeOrder" class="space-y-5">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Qty Produced <span class="text-red-500">*</span></label>
+        <input v-model.number="completeForm.qty_produced" type="number" step="0.0001" min="0" class="input" required />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Output Location <span class="text-red-500">*</span></label>
+        <select v-model="completeForm.location_id" class="input" required>
+          <option :value="null">Select location...</option>
+          <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }}</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-1">Where the finished goods will be placed in stock.</p>
+      </div>
+    </form>
+    <template #footer>
+      <div class="flex justify-end gap-3">
+        <button type="button" @click="showCompleteModal = false" class="btn-ghost">Cancel</button>
+        <button type="submit" form="complete-order-form" class="btn-primary" :disabled="actionLoading">
+          {{ actionLoading ? 'Completing...' : 'Complete Order' }}
+        </button>
+      </div>
+    </template>
+  </UiSlideOver>
+
   <UiConfirmModal
     v-model="showResetModal"
     title="Reset to Draft"
@@ -397,7 +423,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ManufacturingOrder, CostEntry } from '~/types/models'
+import type { ManufacturingOrder, CostEntry, Location } from '~/types/models'
 
 const props = defineProps<{
   orderId: number
@@ -444,6 +470,21 @@ const actionLoading = ref(false)
 // Image Preview
 const showImagePreview = ref(false)
 const previewImage = ref({ src: '', alt: '' })
+
+// Complete Modal
+const showCompleteModal = ref(false)
+const completeForm = ref({ location_id: null as number | null, qty_produced: 0 })
+const locations = ref<Location[]>([])
+
+async function openCompleteModal() {
+  if (!mo.value) return
+  completeForm.value = { location_id: null, qty_produced: mo.value.qty_to_produce }
+  if (!locations.value.length) {
+    const res = await $api<{ data: Location[] }>('/locations')
+    locations.value = res.data || []
+  }
+  showCompleteModal.value = true
+}
 
 // Reset Confirmation
 const showResetModal = ref(false)
@@ -538,8 +579,15 @@ async function startOrder() {
 async function completeOrder() {
   if (!mo.value) return
   actionLoading.value = true
+  showCompleteModal.value = false
   try {
-    await $api(`/manufacturing-orders/${mo.value.id}/complete`, { method: 'POST' })
+    await $api(`/manufacturing-orders/${mo.value.id}/complete`, {
+      method: 'POST',
+      body: {
+        qty_produced: completeForm.value.qty_produced,
+        location_id: completeForm.value.location_id,
+      },
+    })
     toast.success('Order completed')
     await fetchMo()
     emit('updated')

@@ -3,9 +3,6 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\StoreUserRequest;
-use App\Http\Requests\Admin\UpdateUserRequest;
-use App\Http\Requests\Admin\UpdateUserRoleRequest;
 use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -24,18 +21,19 @@ class AuthController extends Controller
         $validated = $request->validated();
 
 
-        // Generate OTP
-        $otp = rand(100000, 999999);
+        // Generate OTP — random_int() is cryptographically secure unlike rand()
+        $otp = random_int(100000, 999999);
 
         // Clean up expired registration attempts
         \App\Models\RegistrationAttempt::where('expires_at', '<', now())->delete();
 
-        // Store raw password - User model will hash it when user is created
+        // Hash password before storing so registration_attempts never holds plaintext credentials.
+        // Laravel's `hashed` cast on User detects the bcrypt prefix and will NOT re-hash on User::create().
         \App\Models\RegistrationAttempt::updateOrCreate(
             ['email' => $validated['email']],
             [
                 'name' => $validated['name'],
-                'password' => $validated['password'], 
+                'password' => Hash::make($validated['password']),
                 'otp' => $otp,
                 'expires_at' => now()->addMinutes(5),
             ]
@@ -208,92 +206,4 @@ class AuthController extends Controller
         return response()->json(['message' => 'Password updated successfully']);
     }
 
-    public function index(Request $request)
-    {
-        $query = User::with('role')
-            ->applyStandardFilters(
-                $request,
-                ['name', 'email'], 
-                ['role_id', 'is_active'] 
-            );
-
-
-        $paginator = $query->paginate($request->get('per_page', 10));
-
-        return response()->json([
-            'data' => $paginator->items(),
-            'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ]
-        ]);
-    }
-
-    public function updateRole(UpdateUserRoleRequest $request, User $user)
-    {
-        $validated = $request->validated();
-
-        $user->update(['role_id' => $validated['role_id']]);
-
-        return response()->json($user->load('role'));
-    }
-
-    public function update(UpdateUserRequest $request, User $user)
-    {
-        $validated = $request->validated();
-
-        $userData = [
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'role_id' => $validated['role_id'],
-        ];
-
-        if (!empty($validated['password'])) {
-            $userData['password'] = Hash::make($validated['password']);
-        }
-
-        if ($request->hasFile('avatar')) {
-            $path = $request->file('avatar')->store('avatars', 'public');
-            $userData['avatar_url'] = '/storage/' . $path;
-        } elseif (isset($validated['remove_avatar']) && $validated['remove_avatar']) {
-            // Remove avatar by setting to null
-            $userData['avatar_url'] = null;
-        }
-
-        $user->update($userData);
-
-        return response()->json($user->load('role'));
-    }
-
-    public function store(StoreUserRequest $request)
-    {
-        $validated = $request->validated();
-
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => $validated['password'], 
-            'role_id' => $validated['role_id'],
-            'organization_id' => $request->user()->organization_id, 
-            'is_active' => true,
-            'is_approved' => true, 
-            'approved_at' => now(),
-            'approved_by' => $request->user()->id,
-        ]);
-
-        return response()->json($user->load('role'), 201);
-    }
-
-    public function destroy(Request $request, User $user)
-    {
-        if ($request->user()->id === $user->id) {
-            return response()->json(['message' => 'Cannot delete yourself'], 403);
-        }
-
-        $user->delete();
-
-        return response()->json(null, 204);
-    }
 }
