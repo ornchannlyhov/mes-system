@@ -89,14 +89,20 @@ class EndToEndFlowTest extends TestCase
             ->first();
         $this->actingAs($operatorUser);
 
-        // 2. Engineering: Create Components and Product
+        // 2. Engineering: Create Location, Components and Product
+        $locationPayload = ['name' => 'Warehouse A', 'code' => 'WH-A'];
+        $locResp = $this->withHeaders($this->headers)->postJson('/api/locations', $locationPayload);
+        $locResp->assertStatus(201);
+        $locationId = $locResp->json('data.id');
+
         $materialPayload = [
             'code' => 'WOOD-001',
             'name' => 'Oak Wood',
             'type' => 'raw',
             'tracking' => 'none',
             'uom' => 'unit',
-            'description' => 'Raw material'
+            'description' => 'Raw material',
+            'location_id' => $locationId,
         ];
         $materialResp = $this->withHeaders($this->headers)->postJson('/api/products', $materialPayload);
         $materialResp->assertStatus(201);
@@ -108,7 +114,8 @@ class EndToEndFlowTest extends TestCase
             'type' => 'finished',
             'tracking' => 'lot',
             'uom' => 'unit',
-            'description' => 'Finished good'
+            'description' => 'Finished good',
+            'location_id' => $locationId,
         ];
         $productResp = $this->withHeaders($this->headers)->postJson('/api/products', $productPayload);
         $productResp->assertStatus(201);
@@ -116,10 +123,6 @@ class EndToEndFlowTest extends TestCase
 
         // 3. Engineering: Create BOM
         // Adjust stock first so we can produce
-        $locationPayload = ['name' => 'Warehouse A', 'code' => 'WH-A'];
-        $locResp = $this->withHeaders($this->headers)->postJson('/api/locations', $locationPayload);
-        $locResp->assertStatus(201);
-        $locationId = $locResp->json('data.id');
 
         // Add lots/stock for material
         $this->withHeaders($this->headers)->postJson("/api/locations/{$locationId}/adjust-stock", [

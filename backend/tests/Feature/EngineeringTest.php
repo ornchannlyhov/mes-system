@@ -21,7 +21,9 @@ class EngineeringTest extends TestCase
         $apiKey = explode(',', config('app.api_keys'))[0];
         $this->headers = ['X-API-Key' => $apiKey];
 
-        $user = User::factory()->create();
+        $org = \App\Models\Organization::create(['name' => 'Test Org']);
+        $user = User::factory()->create(['organization_id' => $org->id]);
+        $this->actingAs($user);
         $token = $user->createToken('test')->plainTextToken;
         $this->headers['Authorization'] = 'Bearer ' . $token;
     }
@@ -30,6 +32,11 @@ class EngineeringTest extends TestCase
 
     public function test_product_crud_lifecycle()
     {
+        $locationId = $this->withHeaders($this->headers)
+            ->postJson('/api/locations', ['name' => 'Test Warehouse', 'code' => 'TW-001'])
+            ->assertStatus(201)
+            ->json('data.id');
+
         // Create
         $payload = [
             'name' => 'Test Product',
@@ -38,6 +45,7 @@ class EngineeringTest extends TestCase
             'tracking' => 'none',
             'uom' => 'unit',
             'description' => 'A test product',
+            'location_id' => $locationId,
         ];
 
         $response = $this->withHeaders($this->headers)->postJson('/api/products', $payload);

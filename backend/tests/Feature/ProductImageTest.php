@@ -23,7 +23,9 @@ class ProductImageTest extends TestCase
         $apiKey = explode(',', config('app.api_keys'))[0];
         $this->headers = ['X-API-Key' => $apiKey];
 
-        $this->user = User::factory()->create();
+        $org = \App\Models\Organization::create(['name' => 'Test Org']);
+        $this->user = User::factory()->create(['organization_id' => $org->id]);
+        $this->actingAs($this->user);
         $token = $this->user->createToken('test')->plainTextToken;
         $this->headers['Authorization'] = 'Bearer ' . $token;
 
@@ -32,6 +34,11 @@ class ProductImageTest extends TestCase
 
     public function test_can_upload_product_image()
     {
+        $locationId = $this->withHeaders($this->headers)
+            ->postJson('/api/locations', ['name' => 'Test Warehouse', 'code' => 'TW-001'])
+            ->assertStatus(201)
+            ->json('data.id');
+
         $file = UploadedFile::fake()->image('product.jpg');
 
         $payload = [
@@ -41,6 +48,7 @@ class ProductImageTest extends TestCase
             'tracking' => 'none',
             'uom' => 'unit',
             'image' => $file,
+            'location_id' => $locationId,
         ];
 
         $response = $this->withHeaders($this->headers)->postJson('/api/products', $payload);
