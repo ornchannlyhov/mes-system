@@ -106,7 +106,7 @@
 
     <!-- SlideOver -->
     <UiSlideOver v-model="showModal" :title="editing ? 'Edit Work Center' : 'Add Work Center'">
-      <form @submit.prevent="save" class="space-y-6">
+      <form id="work-center-form" @submit.prevent="save" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Code *</label>
           <input v-model="form.code" type="text" class="input" placeholder="WC-001" required />
@@ -142,13 +142,16 @@
           <input v-model.number="form.overhead_per_hour" type="number" step="0.01" min="0" class="input" required />
         </div>
         
-        <div class="flex justify-end gap-3 result mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editing" type="button" @click="clearWcForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="work-center-form" class="btn-primary" :disabled="saving">
             {{ saving ? 'Saving...' : (editing ? 'Update' : 'Create') }}
           </button>
         </div>
-      </form>
+      </template>
     </UiSlideOver>
 
     <!-- Delete Confirmation Modal -->
@@ -193,15 +196,10 @@ const showDeleteModal = ref(false)
 const deletingItem = ref<WorkCenter | null>(null)
 const deleting = ref(false)
 
-const form = ref({
-  code: '',
-  name: '',
-  location: '',
-  status: 'active' as 'active' | 'maintenance' | 'down',
-  efficiency_percent: 100,
-  cost_per_hour: 0,
-  overhead_per_hour: 0,
-})
+const wcFormDefaults = { code: '', name: '', location: '', status: 'active' as 'active' | 'maintenance' | 'down', efficiency_percent: 100, cost_per_hour: 0, overhead_per_hour: 0 }
+const wcCache = useFormCache('work-center', wcFormDefaults)
+const form = ref(wcCache.fresh())
+watch(form, (val) => { if (!editing.value) wcCache.persist(val) }, { deep: true })
 
 function statusDotClass(status: string) {
   const classes: Record<string, string> = {
@@ -237,9 +235,14 @@ function openModal(wc?: WorkCenter) {
     }
   } else {
     editing.value = null
-    form.value = { code: '', name: '', location: '', status: 'active', efficiency_percent: 100, cost_per_hour: 0, overhead_per_hour: 0 }
+    form.value = wcCache.load()
   }
   showModal.value = true
+}
+
+function clearWcForm() {
+  wcCache.clear()
+  form.value = wcCache.fresh()
 }
 
 async function save() {
@@ -252,6 +255,7 @@ async function save() {
       await $api('/work-centers', { method: 'POST', body: form.value })
       toast.success('Work center created')
     }
+    wcCache.clear()
     showModal.value = false
     await fetchData(true)
   } catch (e: any) {

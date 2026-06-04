@@ -179,7 +179,7 @@
 
     <!-- Lot SlideOver -->
     <UiSlideOver v-model="showLotModal" :title="editingLot ? 'Edit Lot' : 'Create Lot'">
-      <form @submit.prevent="saveLot" class="space-y-6">
+      <form id="lot-form" @submit.prevent="saveLot" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Name/Code *</label>
           <input v-model="lotForm.name" type="text" class="input" required />
@@ -194,24 +194,41 @@
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Initial Qty</label>
-            <input v-model.number="lotForm.initial_qty" type="number" step="0.01" class="input" />
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Initial Qty
+              <span class="text-xs text-gray-400 font-normal ml-1">— qty received in this batch</span>
+            </label>
+            <input v-model.number="lotForm.initial_qty" type="number" step="0.01" min="0" placeholder="0" class="input" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
             <input v-model="lotForm.expiry_date" type="date" class="input" />
           </div>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showLotModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="lotSaving">{{ lotSaving ? 'Saving...' : 'Save' }}</button>
+        <div v-if="!editingLot">
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Location
+            <span v-if="lotForm.initial_qty > 0" class="text-red-500">*</span>
+            <span class="text-xs text-gray-400 font-normal ml-1">— where stock will be stored</span>
+          </label>
+          <UiSearchableSelect
+            v-model="lotForm.location_id"
+            :options="locations.map(l => ({ label: l.name, value: l.id }))"
+            placeholder="Select location..."
+          />
         </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" @click="clearLotForm" class="btn-ghost">Clear</button>
+          <button type="submit" form="lot-form" class="btn-primary" :disabled="lotSaving">{{ lotSaving ? 'Saving...' : 'Save' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Serial SlideOver -->
     <UiSlideOver v-model="showSerialModal" title="Edit Serial">
-      <form @submit.prevent="saveSerial" class="space-y-6">
+      <form id="serial-form" @submit.prevent="saveSerial" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Serial Number *</label>
           <input v-model="serialForm.name" type="text" class="input" required />
@@ -225,11 +242,13 @@
             <option value="sold">Sold</option>
           </select>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showSerialModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="serialSaving">{{ serialSaving ? 'Saving...' : 'Update' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" @click="showSerialModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="serial-form" class="btn-primary" :disabled="serialSaving">{{ serialSaving ? 'Saving...' : 'Update' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Genealogy SlideOver -->
@@ -278,6 +297,7 @@ interface Lot {
   product?: Product
   expiry_date?: string
   initial_qty?: number
+  location_id?: number | null
 }
 
 const { $api } = useApi()
@@ -299,7 +319,10 @@ const lotSaving = ref(false)
 const showDeleteLotModal = ref(false)
 const lotDeleting = ref(false)
 const deletingLot = ref<Lot | null>(null)
-const lotForm = ref({ name: '', product_id: null as number | null, expiry_date: '', initial_qty: 0 })
+const lotFormDefaults = { name: '', product_id: null as number | null, expiry_date: '', initial_qty: 0, location_id: null as number | null }
+const lotCache = useFormCache('lot', lotFormDefaults)
+const lotForm = ref(lotCache.fresh())
+watch(lotForm, (val) => { if (!editingLot.value) lotCache.persist(val) }, { deep: true })
 const lotsLoading = ref(true)
 
 // Serials State
@@ -323,6 +346,7 @@ const loadingGenealogy = ref(false)
 
 // Shared
 const products = computed(() => masterStore.products)
+const locations = computed(() => masterStore.locations)
 
 // Lots Functions
 async function fetchLots(page = 1) {
@@ -344,30 +368,47 @@ async function fetchLots(page = 1) {
 }
 
 function openLotModal(lot?: Lot) {
+  masterStore.fetchLocations()
   if (lot) {
     editingLot.value = lot
-    lotForm.value = { 
-      name: lot.name, 
-      product_id: lot.product_id, 
-      expiry_date: lot.expiry_date || '', 
-      initial_qty: lot.initial_qty || 0 
+    lotForm.value = {
+      name: lot.name,
+      product_id: lot.product_id,
+      expiry_date: lot.expiry_date || '',
+      initial_qty: lot.initial_qty || 0,
+      location_id: null,
     }
   } else {
     editingLot.value = null
-    lotForm.value = { name: '', product_id: null, expiry_date: '', initial_qty: 0 }
+    lotForm.value = lotCache.load()
   }
   showLotModal.value = true
 }
 
+function clearLotForm() {
+  lotCache.clear()
+  lotForm.value = lotCache.fresh()
+}
+
 async function saveLot() {
+  if (!editingLot.value && lotForm.value.initial_qty > 0 && !lotForm.value.location_id) {
+    toast.error('Please select a location for the initial stock')
+    return
+  }
   lotSaving.value = true
   try {
     if (editingLot.value) {
-      await $api(`/lots/${editingLot.value.id}`, { method: 'PUT', body: lotForm.value })
+      const { location_id, ...editBody } = lotForm.value
+      await $api(`/lots/${editingLot.value.id}`, { method: 'PUT', body: editBody })
       toast.success('Lot updated successfully')
     } else {
-      await $api('/lots', { method: 'POST', body: lotForm.value })
+      const { location_id, initial_qty, ...rest } = lotForm.value
+      const body: Record<string, any> = { ...rest }
+      if (initial_qty > 0) body.initial_qty = initial_qty
+      if (location_id) body.location_id = location_id
+      await $api('/lots', { method: 'POST', body })
       toast.success('Lot created successfully')
+      lotCache.clear()
     }
     showLotModal.value = false
     await fetchLots(lotCurrentPage.value)

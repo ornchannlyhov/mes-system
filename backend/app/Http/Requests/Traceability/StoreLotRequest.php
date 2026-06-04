@@ -19,6 +19,11 @@ class StoreLotRequest extends FormRequest
             'manufactured_date' => 'nullable|date',
             'expiry_date' => 'nullable|date|after:manufactured_date',
             'initial_qty' => 'nullable|numeric|min:0',
+            'location_id' => [
+                \Illuminate\Validation\Rule::requiredIf(fn () => (float) $this->input('initial_qty', 0) > 0),
+                'nullable',
+                'exists:locations,id',
+            ],
             'notes' => 'nullable|string',
         ];
     }

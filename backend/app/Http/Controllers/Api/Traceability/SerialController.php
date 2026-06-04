@@ -72,13 +72,22 @@ class SerialController extends BaseController
 
     public function genealogy(Serial $serial)
     {
+        // Pre-load 3 levels deep in one eager-load call to eliminate N+1 queries.
+        // Each additional level adds one more nesting tier to the chain below.
+        $serial->load([
+            'product',
+            'manufacturingOrder.consumptions.lot.product',
+            'manufacturingOrder.consumptions.lot.manufacturingOrder.consumptions.lot.product',
+            'manufacturingOrder.consumptions.lot.manufacturingOrder.consumptions.lot.manufacturingOrder.consumptions.lot.product',
+        ]);
+
         return $this->success($this->buildNode($serial));
     }
 
     private function buildNode($serialOrLot, $depth = 0)
     {
         if ($depth > 5)
-            return null; // Prevent deep recursion
+            return null;
 
         $isSerial = $serialOrLot instanceof Serial;
         $node = [
@@ -90,19 +99,24 @@ class SerialController extends BaseController
             'children' => [],
         ];
 
-        // Find the MO that produced this item
-        // For Serial: $serial->manufacturingOrder
-        // For Lot: Need to find MO where lot_id = this lot
+        // Use already-loaded relationships — no additional queries fired here
         $mo = null;
         if ($isSerial) {
-            $mo = $serialOrLot->manufacturingOrder;
+            $mo = $serialOrLot->relationLoaded('manufacturingOrder')
+                ? $serialOrLot->manufacturingOrder
+                : $serialOrLot->manufacturingOrder;
         } else {
-            $mo = \App\Models\ManufacturingOrder::where('lot_id', $serialOrLot->id)->first();
+            // Lot→MO relationship is pre-loaded via the eager chain above
+            $mo = $serialOrLot->relationLoaded('manufacturingOrder')
+                ? $serialOrLot->manufacturingOrder
+                : \App\Models\ManufacturingOrder::with('consumptions.lot.product')
+                    ->where('lot_id', $serialOrLot->id)
+                    ->first();
         }
 
         if ($mo) {
-            $mo->load('consumptions.lot.product');
-            foreach ($mo->consumptions as $consumption) {
+            $consumptions = $mo->relationLoaded('consumptions') ? $mo->consumptions : $mo->load('consumptions.lot.product')->consumptions;
+            foreach ($consumptions as $consumption) {
                 if ($consumption->lot) {
                     $childNode = $this->buildNode($consumption->lot, $depth + 1);
                     if ($childNode) {

@@ -30,6 +30,9 @@ class StoreProductRequest extends FormRequest
             'cost' => 'nullable|numeric|min:0',
             'description' => 'nullable|string',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'image_url' => 'nullable|string|max:500',
+            'initial_qty' => 'nullable|numeric|min:0',
+            'location_id' => ['required', 'exists:locations,id'],
         ];
     }
 }

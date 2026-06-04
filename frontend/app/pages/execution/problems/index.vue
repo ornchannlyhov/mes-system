@@ -399,7 +399,7 @@
 
     <!-- Record Scrap SlideOver -->
     <UiSlideOver v-model="showScrapModal" :title="editingScrap ? 'Edit Scrap Record' : 'Record Scrap'">
-      <form @submit.prevent="saveScrap" class="space-y-6">
+      <form id="scrap-form" @submit.prevent="saveScrap" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Product</label>
           <UiSearchableSelect
@@ -428,16 +428,19 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
           <input v-model="scrapForm.reason" type="text" class="input" required />
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showScrapModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editingScrap" type="button" @click="clearScrapForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showScrapModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="scrap-form" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Record Loss SlideOver -->
     <UiSlideOver v-model="showLossModal" :title="editingLoss ? 'Edit Material Loss' : 'Record Material Loss'">
-      <form @submit.prevent="saveLoss" class="space-y-6">
+      <form id="loss-form" @submit.prevent="saveLoss" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Manufacturing Order</label>
           <UiSearchableSelect
@@ -472,16 +475,19 @@
         <div class="p-3 bg-gray-50 rounded-lg">
           <p class="text-sm text-gray-500">Variance: <span :class="lossVariance > 0 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'">{{ lossVariance > 0 ? '+' : '' }}{{ lossVariance }}</span></p>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showLossModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editingLoss" type="button" @click="clearLossForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showLossModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="loss-form" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Create Unbuild Order SlideOver -->
     <UiSlideOver v-model="showUnbuildModal" :title="editingUnbuild ? 'Edit Unbuild Order' : 'Create Unbuild Order'">
-      <form @submit.prevent="saveUnbuild" class="space-y-6">
+      <form id="unbuild-form" @submit.prevent="saveUnbuild" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Product to Unbuild</label>
           <UiSearchableSelect
@@ -537,13 +543,16 @@
            <input v-model="unbuildForm.reason" type="text" class="input" placeholder="e.g. Defect found in QA" />
         </div>
 
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showUnbuildModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">
-            {{ saving ? 'Saving...' : 'Create Order' }}
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editingUnbuild" type="button" @click="clearUnbuildForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showUnbuildModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="unbuild-form" class="btn-primary" :disabled="saving">
+            {{ saving ? 'Saving...' : (editingUnbuild ? 'Update' : 'Create Order') }}
           </button>
         </div>
-      </form>
+      </template>
     </UiSlideOver>
 
     <!-- Delete Confirmation Modal -->
@@ -680,10 +689,19 @@ const editingLoss = ref<Consumption | null>(null)
 const editingScrap = ref<Scrap | null>(null)
 const editingUnbuild = ref<UnbuildOrder | null>(null)
 
-// Forms
-const scrapForm = ref({ product_id: null as number | null, location_id: null as number | null, quantity: 1, reason: '' })
-const lossForm = ref({ manufacturing_order_id: null as number | null, product_id: null as number | null, qty_planned: 0, qty_consumed: 0 })
-const unbuildForm = ref({ product_id: null as number | null, bom_id: null as number | null, manufacturing_order_id: null as number | null, location_id: null as number | null, component_location_id: null as number | null, quantity: 1, reason: '' })
+// Forms with cache
+const scrapFormDefaults = { product_id: null as number | null, location_id: null as number | null, quantity: 1, reason: '' }
+const lossFormDefaults = { manufacturing_order_id: null as number | null, product_id: null as number | null, qty_planned: 0, qty_consumed: 0 }
+const unbuildFormDefaults = { product_id: null as number | null, bom_id: null as number | null, manufacturing_order_id: null as number | null, location_id: null as number | null, component_location_id: null as number | null, quantity: 1, reason: '' }
+const scrapCache = useFormCache('scrap', scrapFormDefaults)
+const lossCache = useFormCache('loss', lossFormDefaults)
+const unbuildCache = useFormCache('unbuild', unbuildFormDefaults)
+const scrapForm = ref(scrapCache.fresh())
+const lossForm = ref(lossCache.fresh())
+const unbuildForm = ref(unbuildCache.fresh())
+watch(scrapForm, (val) => { if (!editingScrap.value) scrapCache.persist(val) }, { deep: true })
+watch(lossForm, (val) => { if (!editingLoss.value) lossCache.persist(val) }, { deep: true })
+watch(unbuildForm, (val) => { if (!editingUnbuild.value) unbuildCache.persist(val) }, { deep: true })
 
 // Delete Confirmation
 const deleteType = ref<'scrap' | 'variance' | 'unbuild'>('scrap')
@@ -809,11 +827,13 @@ function openScrapModal(scrap?: Scrap) {
         }
     } else {
         editingScrap.value = null
-        scrapForm.value = { product_id: null, location_id: null, quantity: 1, reason: '' }
+        scrapForm.value = scrapCache.load()
         productStocks.value = []
     }
     showScrapModal.value = true
 }
+
+function clearScrapForm() { scrapCache.clear(); scrapForm.value = scrapCache.fresh() }
 
 async function saveScrap() {
   saving.value = true
@@ -824,6 +844,7 @@ async function saveScrap() {
     } else {
         await $api('/scraps', { method: 'POST', body: scrapForm.value })
         toast.success('Scrap recorded successfully')
+      scrapCache.clear()
     }
     showScrapModal.value = false
     refreshScraps()
@@ -857,11 +878,13 @@ function openLossModal(variance?: Consumption) {
         }
     } else {
         editingLoss.value = null
-        lossForm.value = { manufacturing_order_id: null, product_id: null, qty_planned: 0, qty_consumed: 0 }
+        lossForm.value = lossCache.load()
         moComponents.value = []
     }
     showLossModal.value = true
 }
+
+function clearLossForm() { lossCache.clear(); lossForm.value = lossCache.fresh() }
 
 async function saveLoss() {
   saving.value = true
@@ -872,6 +895,7 @@ async function saveLoss() {
     } else {
         await $api('/consumptions', { method: 'POST', body: lossForm.value })
         toast.success('Loss recorded')
+      lossCache.clear()
     }
     showLossModal.value = false
     refreshVariances()
@@ -902,19 +926,13 @@ function openUnbuildModal(order?: UnbuildOrder) {
         }
     } else {
         editingUnbuild.value = null
-        unbuildForm.value = {
-            product_id: null,
-            bom_id: null,
-            manufacturing_order_id: null,
-            location_id: null,
-            component_location_id: null,
-            quantity: 1,
-            reason: ''
-        }
+        unbuildForm.value = unbuildCache.load()
         productBoms.value = []
     }
     showUnbuildModal.value = true
 }
+
+function clearUnbuildForm() { unbuildCache.clear(); unbuildForm.value = unbuildCache.fresh() }
 
 async function saveUnbuild() {
   if (!unbuildForm.value.product_id || !unbuildForm.value.bom_id) return
@@ -926,6 +944,7 @@ async function saveUnbuild() {
     } else {
         await $api('/unbuild-orders', { method: 'POST', body: unbuildForm.value }) 
         toast.success('Unbuild order created')
+      unbuildCache.clear()
     }
     showUnbuildModal.value = false
     refreshUnbuilds()

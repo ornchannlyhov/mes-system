@@ -18,7 +18,7 @@ class ForgotPasswordController extends Controller
         // Validation is handled by ForgotPasswordRequest
 
         $email = $request->email;
-        $otp = rand(100000, 999999);
+        $otp = random_int(100000, 999999);
 
         // Invalidate old codes
         DB::table('verification_codes')

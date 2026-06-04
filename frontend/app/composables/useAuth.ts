@@ -5,7 +5,7 @@ export function useAuth() {
     const user = useState<User | null>('auth-user', () => null)
     // Use useCookie instead of localStorage for SSR compatibility
     const tokenCookie = useCookie<string | null>('auth-token', {
-        maxAge: 60 * 60 * 24 * 7, // 7 days
+        maxAge: 60 * 60 * 2, // 2 hours
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
         domain: config.public.cookieDomain || undefined,
@@ -105,10 +105,8 @@ export function useAuth() {
         token.value = null
         tokenCookie.value = null
 
-        // Reset all stores to clear cached data
-        // We call them here; Nuxt 3 auto-imports stores from the stores/ directory
+        // Reset module stores to clear cached data on logout
         try {
-            useAuthStore().$reset()
             useAdminStore().$reset()
             useExecutionStore().$reset()
             useInventoryStore().$reset()

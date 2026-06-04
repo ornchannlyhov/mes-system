@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Inventory;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreLocationRequest extends FormRequest
 {
@@ -15,7 +16,15 @@ class StoreLocationRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'code' => 'nullable|string|max:50|unique:locations',
+            'code' => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('locations')->where(function ($query) {
+                    return $query->where('organization_id', $this->user()->organization_id)
+                                 ->whereNull('deleted_at');
+                }),
+            ],
             'type' => 'in:warehouse,production,scrap',
         ];
     }

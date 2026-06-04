@@ -85,7 +85,7 @@ export function useIdleTimeout() {
 
             // Update the cookie
             const tokenCookie = useCookie<string | null>('auth-token', {
-                maxAge: 60 * 60 * 24 * 7,
+                maxAge: 60 * 60 * 2, // 2 hours
                 sameSite: 'lax',
                 secure: process.env.NODE_ENV === 'production',
                 domain: config.public.cookieDomain || undefined,
@@ -103,25 +103,21 @@ export function useIdleTimeout() {
         }
     }
 
+    // Named handler — anonymous arrow functions cannot be passed to removeEventListener
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+            resetTimer()
+        }
+    }
+
     // Initialize idle detection
     function startIdleDetection() {
-        // Events that indicate user activity
         const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
-
-        // Add event listeners
         events.forEach((event) => {
             document.addEventListener(event, resetTimer, { passive: true })
         })
-
-        // Start initial timer
+        document.addEventListener('visibilitychange', handleVisibilityChange)
         resetTimer()
-
-        // Handle page visibility change (user switches tabs)
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                resetTimer()
-            }
-        })
     }
 
     // Stop idle detection (cleanup)
@@ -130,6 +126,7 @@ export function useIdleTimeout() {
         events.forEach((event) => {
             document.removeEventListener(event, resetTimer)
         })
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
 
         if (inactivityTimer) clearTimeout(inactivityTimer)
         if (warningTimer) clearTimeout(warningTimer)

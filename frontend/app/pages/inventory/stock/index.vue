@@ -243,6 +243,25 @@ const inventoryStore = useInventoryStore()
 
 const stocks = computed(() => inventoryStore.stocks as Stock[])
 const locations = computed(() => masterStore.locations)
+
+// Merge real stock rows with synthetic zero-stock rows for products that have no stock at all
+const allStockRows = computed(() => {
+  const stockedIds = new Set(stocks.value.map(s => s.product_id))
+  const zeroRows = masterStore.products
+    .filter(p => !stockedIds.has(p.id))
+    .map(p => ({
+      id: `zero-${p.id}` as any,
+      product_id: p.id,
+      product: p,
+      location_id: null,
+      location: null,
+      lot_id: null,
+      lot: null,
+      quantity: 0,
+      reserved_qty: 0,
+    }))
+  return [...stocks.value, ...zeroRows]
+})
 const selectedLocation = ref('')
 const search = ref('')
 const currentPage = ref(1)
@@ -288,7 +307,7 @@ const historyPage = ref(1)
 const historyPageSize = 10
 
 const filteredStock = computed(() => {
-  return stocks.value.filter(s => {
+  return allStockRows.value.filter(s => {
     const matchesLocation = !selectedLocation.value || s.location_id === Number(selectedLocation.value)
     const matchesSearch = !search.value || s.product?.name?.toLowerCase().includes(search.value.toLowerCase())
     return matchesLocation && matchesSearch
@@ -351,6 +370,7 @@ async function fetchData(force = false) {
     await Promise.all([
       inventoryStore.fetchStocks(force),
       masterStore.fetchLocations(),
+      masterStore.fetchProducts(force),
     ])
   } catch (e) {
     toast.error('Failed to fetch stock data')

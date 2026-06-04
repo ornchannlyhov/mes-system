@@ -84,7 +84,7 @@
 
     <!-- SlideOver -->
     <UiSlideOver v-model="showModal" :title="editing ? 'Edit Location' : 'Add Location'">
-      <form @submit.prevent="save" class="space-y-6">
+      <form id="location-form" @submit.prevent="save" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Code</label>
           <input v-model="form.code" type="text" class="input" required />
@@ -101,11 +101,14 @@
             <option value="scrap">Scrap</option>
           </select>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editing" type="button" @click="clearLocationForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="location-form" class="btn-primary" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Delete Confirmation Modal -->
@@ -142,11 +145,10 @@ const showDeleteModal = ref(false)
 const deletingItem = ref<Location | null>(null)
 const deleting = ref(false)
 
-const form = ref({
-  code: '',
-  name: '',
-  type: 'warehouse' as 'warehouse' | 'production' | 'scrap',
-})
+const locationFormDefaults = { code: '', name: '', type: 'warehouse' as 'warehouse' | 'production' | 'scrap' }
+const locationCache = useFormCache('location', locationFormDefaults)
+const form = ref(locationCache.fresh())
+watch(form, (val) => { if (!editing.value) locationCache.persist(val) }, { deep: true })
 
 function typeClass(type: string) {
   return {
@@ -170,12 +172,17 @@ async function fetchLocations(force = false) {
 function openModal(loc?: Location) {
   if (loc) {
     editing.value = loc
-    form.value = { ...loc }
+    form.value = { code: loc.code, name: loc.name, type: loc.type }
   } else {
     editing.value = null
-    form.value = { code: '', name: '', type: 'warehouse' }
+    form.value = locationCache.load()
   }
   showModal.value = true
+}
+
+function clearLocationForm() {
+  locationCache.clear()
+  form.value = locationCache.fresh()
 }
 
 async function save() {
@@ -188,6 +195,7 @@ async function save() {
       await $api('/locations', { method: 'POST', body: form.value })
       toast.success('Location created successfully')
     }
+    locationCache.clear()
     showModal.value = false
     await fetchLocations(true)
   } catch (e: any) {

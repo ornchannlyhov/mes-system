@@ -13,30 +13,18 @@ class RoleController extends BaseController
 {
     public function index(Request $request)
     {
-        $organizationId = \Auth::user()->organization_id;
-
-        $query = Role::select(['id', 'name', 'label', 'organization_id'])
-            ->with(['permissions:id,label']);
-
-        if ($organizationId) {
-            // Get names of roles specifically defined for this organization
-            $localNames = Role::where('organization_id', $organizationId)->pluck('name');
-
-            if ($localNames->isNotEmpty()) {
-                $query->where(function ($q) use ($organizationId, $localNames) {
-                    $q->where('organization_id', $organizationId)
-                        ->orWhere(function ($q2) use ($localNames) {
-                            $q2->whereNull('organization_id')
-                                ->whereNotIn('name', $localNames);
-                        });
-                });
-            }
-        }
+        // ScopeByOrganization + allowGlobalRecords() already returns:
+        //   rows WHERE organization_id = current_org OR organization_id IS NULL
+        // We only need to exclude the superadmin role (is_system = true) which has
+        // organization_id = NULL and must never appear in an org's role management UI.
+        $query = Role::select(['id', 'name', 'label', 'organization_id', 'is_system'])
+            ->with(['permissions:id,label'])
+            ->where('is_system', false);
 
         $query->applyStandardFilters(
             $request,
-            ['name', 'label'], // Searchable
-            [] // Filterable
+            ['name', 'label'],
+            []
         );
 
         return $this->respondWithPagination(
@@ -82,7 +70,7 @@ class RoleController extends BaseController
 
     public function destroy(Role $role)
     {
-        if (in_array($role->name, ['admin', 'manager', 'operator'])) {
+        if ($role->is_system || in_array($role->name, ['admin', 'manager', 'operator'])) {
             return $this->error('Cannot delete system roles', 403);
         }
 

@@ -6,10 +6,14 @@ use App\Http\Controllers\Api\BaseController;
 use App\Http\Requests\Engineering\StoreProductRequest;
 use App\Http\Requests\Engineering\UpdateProductRequest;
 use App\Models\Product;
+use App\Services\StockService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends BaseController
 {
+    public function __construct(protected StockService $stockService) {}
+
     public function index(Request $request)
     {
         $query = Product::select([
@@ -54,7 +58,20 @@ class ProductController extends BaseController
             $validated['image_url'] = $path;
         }
 
-        $product = Product::create($validated);
+        $initialQty = (float) ($validated['initial_qty'] ?? 0);
+        $locationId = $validated['location_id'] ?? null;
+
+        $product = Product::create(\Illuminate\Support\Arr::except($validated, ['initial_qty', 'location_id']));
+
+        if ($locationId) {
+            $this->stockService->adjustStock([
+                'product_id'  => $product->id,
+                'location_id' => $locationId,
+                'quantity'    => $initialQty,
+                'reason'      => 'initial',
+                'notes'       => "Initial stock for {$product->name}",
+            ]);
+        }
 
         return $this->success($product, [], 201);
     }
@@ -82,12 +99,11 @@ class ProductController extends BaseController
         $validated = $request->validated();
 
         if ($request->hasFile('image')) {
-            if ($product->image_url && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image_url)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image_url);
-            }
-
+            $this->deleteImageFile($product->image_url);
             $path = $request->file('image')->store('products', 'public');
             $validated['image_url'] = $path;
+        } elseif (array_key_exists('image_url', $validated) && $validated['image_url'] === null) {
+            $this->deleteImageFile($product->image_url);
         }
 
         $product->update($validated);
@@ -101,8 +117,16 @@ class ProductController extends BaseController
             return $this->error('Cannot delete product with existing stock.', 422);
         }
 
+        $this->deleteImageFile($product->image_url);
         $product->delete();
 
         return $this->success(null, [], 204);
+    }
+
+    private function deleteImageFile(?string $path): void
+    {
+        if ($path && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
     }
 }

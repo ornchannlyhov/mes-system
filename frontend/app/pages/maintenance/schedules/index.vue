@@ -98,7 +98,7 @@
 
     <!-- SlideOver -->
     <UiSlideOver v-model="showModal" :title="editing ? 'Edit Schedule' : 'Add Schedule'">
-      <form @submit.prevent="save" class="space-y-6">
+      <form id="schedule-form" @submit.prevent="save" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
           <input v-model="form.name" type="text" class="input" required />
@@ -124,11 +124,14 @@
             <span class="text-sm">Active</span>
           </label>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary">Save</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editing" type="button" @click="clearScheduleForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="schedule-form" class="btn-primary">Save</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Delete Confirmation Modal -->
@@ -167,7 +170,10 @@ const showDeleteModal = ref(false)
 const deletingItem = ref<Schedule | null>(null)
 const currentPage = ref(1)
 const pageSize = 10
-const form = ref({ name: '', equipment_id: null as number | null, interval: 30, is_active: true })
+const scheduleFormDefaults = { name: '', equipment_id: null as number | null, interval: 30, is_active: true }
+const scheduleCache = useFormCache('maintenance-schedule', scheduleFormDefaults)
+const form = ref(scheduleCache.fresh())
+watch(form, (val) => { if (!editing.value) scheduleCache.persist(val) }, { deep: true })
 const loading = ref(true)
 
 function isOverdue(date?: string) {
@@ -208,9 +214,14 @@ function openModal(schedule?: Schedule) {
     }
   } else {
     editing.value = null
-    form.value = { name: '', equipment_id: null, interval: 30, is_active: true }
+    form.value = scheduleCache.load()
   }
   showModal.value = true
+}
+
+function clearScheduleForm() {
+  scheduleCache.clear()
+  form.value = scheduleCache.fresh()
 }
 
 async function save() {
@@ -235,6 +246,7 @@ async function save() {
       await $api('/maintenance/schedules', { method: 'POST', body: payload })
       toast.success('Schedule created successfully')
     }
+    scheduleCache.clear()
     showModal.value = false
     await fetchData(true)
   } catch (e: any) {

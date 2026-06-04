@@ -285,7 +285,7 @@
 
     <!-- Create/Edit SlideOver -->
     <UiSlideOver v-model="showModal" :title="editing ? 'Edit Manufacturing Order' : 'New Manufacturing Order'">
-      <form @submit.prevent="save" class="space-y-6">
+      <form id="mo-form" @submit.prevent="save" class="space-y-6">
         <!-- Product Selection -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Product to Manufacture *</label>
@@ -305,6 +305,7 @@
             :options="filteredBoms.map(b => ({ label: `BOM #${b.id} - ${b.type} (produces ${Number(b.qty_produced)})`, value: b.id }))"
             placeholder="Select a BOM..."
             :disabled="!form.product_id"
+            @update:modelValue="onBomChange"
           />
           <p v-if="form.product_id && filteredBoms.length === 0" class="text-xs text-amber-600 mt-1">
             No BOM found for this product. Create one first.
@@ -336,13 +337,16 @@
           <input v-model="form.scheduled_end" type="datetime-local" class="input" />
         </div>
 
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editing" type="button" @click="clearMoForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="mo-form" class="btn-primary" :disabled="saving">
             {{ saving ? 'Saving...' : (editing ? 'Update Order' : 'Create Order') }}
           </button>
         </div>
-      </form>
+      </template>
     </UiSlideOver>
 
     <!-- Image Preview -->
@@ -567,24 +571,41 @@ const editing = ref<ManufacturingOrder | null>(null)
 const saving = ref(false)
 const actionLoading = ref<number | null>(null)
 
-const form = ref({
+const moFormDefaults = {
   product_id: null as number | null,
   bom_id: null as number | null,
   qty_to_produce: 1,
   priority: 'normal',
   scheduled_start: '',
   scheduled_end: '',
-})
+}
+const moCache = useFormCache('mo', moFormDefaults)
+const form = ref(moCache.fresh())
+watch(form, (val) => { if (!editing.value) moCache.persist(val) }, { deep: true })
 
 const filteredBoms = computed(() => {
   if (!form.value.product_id) return []
   return boms.value.filter(b => b.product_id === form.value.product_id && b.is_active)
 })
 
+function clearMoForm() {
+  moCache.clear()
+  form.value = moCache.fresh()
+}
+
+function onBomChange(bomId: number | null) {
+  const bom = filteredBoms.value.find(b => b.id === bomId)
+  if (bom) {
+    form.value.qty_to_produce = Number(bom.qty_produced)
+  }
+}
+
 function onProductChange() {
   form.value.bom_id = null
+  form.value.qty_to_produce = 1
   if (filteredBoms.value.length === 1) {
     form.value.bom_id = filteredBoms.value[0]?.id ?? null
+    onBomChange(form.value.bom_id)
   }
 }
 
@@ -601,7 +622,7 @@ function openModal(mo?: ManufacturingOrder) {
     }
   } else {
     editing.value = null
-    form.value = { product_id: null, bom_id: null, qty_to_produce: 1, priority: 'normal', scheduled_start: '', scheduled_end: '' }
+    form.value = moCache.load()
   }
   showModal.value = true
 }
@@ -623,6 +644,7 @@ async function save() {
       await $api('/manufacturing-orders', { method: 'POST', body: payload })
       toast.success('Order created')
     }
+    moCache.clear()
     showModal.value = false
     refreshTable(true)
     if (viewMode.value === 'calendar') fetchCalendarData()

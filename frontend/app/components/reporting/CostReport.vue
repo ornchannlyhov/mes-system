@@ -27,23 +27,22 @@
 
     <!-- Cost Analysis Row -->
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <!-- Total Cost Card (25%) -->
-        <div class="card bg-primary-50 border-primary-200 lg:col-span-1 flex flex-col justify-center items-center text-center py-8">
-             <div class="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="heroicons:currency-dollar" class="w-8 h-8 text-primary-600" />
-             </div>
-             <p class="text-sm text-primary-600 uppercase font-bold tracking-wider">Total Cost</p>
-             <p class="text-4xl font-extrabold text-primary-700 mt-2">${{ totalCost.toFixed(2) }}</p>
+      <div class="card bg-primary-50 border-primary-200 lg:col-span-1 flex flex-col justify-center items-center text-center py-8">
+        <div class="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mb-4">
+          <Icon name="heroicons:currency-dollar" class="w-8 h-8 text-primary-600" />
         </div>
+        <p class="text-sm text-primary-600 uppercase font-bold tracking-wider">Total Cost</p>
+        <p class="text-4xl font-extrabold text-primary-700 mt-2">${{ totalCost.toFixed(2) }}</p>
+        <p class="text-xs text-primary-500 mt-1">{{ periodLabel }}</p>
+      </div>
 
-        <!-- Cost Distribution Chart (75%) -->
-        <div class="card lg:col-span-3">
-            <h3 class="font-semibold text-gray-700 mb-4">Cost Distribution</h3>
-            <div class="h-64 relative">
-                 <UiDoughnutChart v-if="costChartData" :data="costChartData" :options="{ maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 20, font: { size: 12 } } }, tooltip: { callbacks: { label: (c) => ` $${Number(c.raw).toFixed(2)}` } } } }" />
-                <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">No cost data</div>
-            </div>
+      <div class="card lg:col-span-3">
+        <h3 class="font-semibold text-gray-700 mb-4">Cost Distribution</h3>
+        <div class="h-64 relative">
+          <UiDoughnutChart v-if="costChartData" :data="costChartData" :options="{ maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 20, font: { size: 12 } } }, tooltip: { callbacks: { label: (c) => ` $${Number(c.raw).toFixed(2)}` } } } }" />
+          <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">No cost data for selected period</div>
         </div>
+      </div>
     </div>
 
     <!-- Cost Entries -->
@@ -71,22 +70,27 @@
             <td class="font-medium">${{ Number(entry.total_cost).toFixed(2) }}</td>
           </tr>
           <tr v-if="entries.length === 0">
-            <td colspan="6" class="text-center text-gray-500 py-8">No cost entries found</td>
+            <td colspan="6" class="text-center text-gray-500 py-8">No cost entries for selected period</td>
           </tr>
         </tbody>
       </table>
     </div>
-      <UiPagination 
-        v-if="entries.length > pageSize"
-        v-model="currentPage" 
-        :total-items="entries.length" 
-        :page-size="pageSize" 
-      />
+    <UiPagination
+      v-if="entries.length > pageSize"
+      v-model="currentPage"
+      :total-items="entries.length"
+      :page-size="pageSize"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { ChartData } from 'chart.js'
+import type { DateRange } from '~/components/ui/DateRangeFilter.vue'
+
+const props = defineProps<{
+  dateRange: DateRange
+}>()
 
 interface CostEntry {
   id: number
@@ -102,6 +106,21 @@ interface CostEntry {
 const { $api } = useApi()
 const entries = ref<CostEntry[]>([])
 
+const presetLabels: Record<string, string> = {
+  today: 'Today',
+  last7: 'Last 7 Days',
+  last30: 'Last 30 Days',
+  thisMonth: 'This Month',
+  lastMonth: 'Last Month',
+}
+
+const periodLabel = computed(() => {
+  if (props.dateRange.preset === 'custom') {
+    return `${props.dateRange.start} – ${props.dateRange.end}`
+  }
+  return presetLabels[props.dateRange.preset] || 'Selected Period'
+})
+
 const costByType = computed(() => {
   const result = { material: 0, overhead: 0, labor: 0, scrap: 0, material_variance: 0 }
   entries.value.forEach(e => {
@@ -113,20 +132,20 @@ const costByType = computed(() => {
 })
 
 const costChartData = computed<ChartData<'doughnut'> | null>(() => {
-    const data = costByType.value
-    const total = Object.values(data).reduce((a, b) => a + b, 0)
-    if (total === 0) return null
+  const data = costByType.value
+  const total = Object.values(data).reduce((a, b) => a + b, 0)
+  if (total === 0) return null
 
-    return {
-        labels: ['Material', 'Overhead', 'Labor', 'Scrap', 'Losses'],
-        datasets: [{
-             data: [data.material, data.overhead, data.labor, data.scrap, data.material_variance],
-             backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#f43f5e', '#f97316'], // Blue, Amber, Emerald, Rose, Orange
-             borderWidth: 2,
-             borderColor: '#ffffff',
-             hoverOffset: 4
-        }]
-    }
+  return {
+    labels: ['Material', 'Overhead', 'Labor', 'Scrap', 'Losses'],
+    datasets: [{
+      data: [data.material, data.overhead, data.labor, data.scrap, data.material_variance],
+      backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#f43f5e', '#f97316'],
+      borderWidth: 2,
+      borderColor: '#ffffff',
+      hoverOffset: 4,
+    }],
+  }
 })
 
 const totalCost = computed(() => entries.value.reduce((sum, e) => sum + Number(e.total_cost || 0), 0))
@@ -138,9 +157,6 @@ const paginatedEntries = computed(() => {
   const start = (currentPage.value - 1) * pageSize
   return entries.value.slice(start, start + pageSize)
 })
-
-
-// Filter removed to show all entries including labor
 
 function formatCostType(type: string) {
   if (type === 'material_variance') return 'Losses'
@@ -159,16 +175,29 @@ function typeClass(type: string) {
 
 async function fetchEntries() {
   try {
-    const res = await $api<{ data: CostEntry[] }>('/reporting/cost')
+    const query: Record<string, string | number> = { per_page: 1000 }
+    if (props.dateRange.start) query.start_date = props.dateRange.start
+    if (props.dateRange.end) query.end_date = props.dateRange.end
+
+    const res = await $api<{ data: CostEntry[] }>('/reporting/cost', { query })
     entries.value = res.data || []
+    currentPage.value = 1
   } catch (e) {
-    console.error('Failed to fetch:', e)
+    console.error('Failed to fetch cost entries:', e)
   }
 }
 
-onMounted(fetchEntries)
-
-defineExpose({
-  fetchEntries
+onMounted(() => {
+  if (props.dateRange.start && props.dateRange.end) {
+    fetchEntries()
+  }
 })
+
+watch(() => props.dateRange, () => {
+  if (props.dateRange.start && props.dateRange.end) {
+    fetchEntries()
+  }
+}, { deep: true })
+
+defineExpose({ fetchEntries })
 </script>

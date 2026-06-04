@@ -154,7 +154,7 @@
 
     <!-- Edit SlideOver -->
     <UiSlideOver v-model="showModal" :title="editingProduct ? 'Edit Product' : 'Add Product'">
-      <form @submit.prevent="saveProduct" class="space-y-6">
+      <form id="product-form" @submit.prevent="saveProduct" class="space-y-6">
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2">
             <label class="block text-sm font-medium text-gray-700 mb-1">Code</label>
@@ -190,6 +190,25 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">Cost</label>
             <input v-model.number="form.cost" type="number" step="0.01" class="input" />
           </div>
+
+          <template v-if="!editingProduct">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Initial Qty
+                <span class="text-xs text-gray-400 font-normal ml-1">— on-hand when created</span>
+              </label>
+              <input v-model.number="form.initial_qty" type="number" step="0.01" min="0" placeholder="0" class="input" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Location <span class="text-red-500">*</span>
+              </label>
+              <select v-model="form.location_id" class="input" required>
+                <option :value="null">Select location...</option>
+                <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }}</option>
+              </select>
+            </div>
+          </template>
 
             <div class="col-span-2">
             <label class="block text-sm font-medium text-gray-700 mb-1">Image</label>
@@ -235,13 +254,15 @@
           </div>
         </div>
 
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="saving">
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" @click="clearProductForm" class="btn-ghost">Clear</button>
+          <button type="submit" form="product-form" class="btn-primary" :disabled="saving">
             {{ saving ? 'Saving...' : 'Save' }}
           </button>
         </div>
-      </form>
+      </template>
     </UiSlideOver>
     
     <!-- Detail SlideOver -->
@@ -263,7 +284,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Product } from '~/types/models'
+import type { Product, Location } from '~/types/models'
 
 const { $api } = useApi()
 const toast = useToast()
@@ -290,7 +311,7 @@ const showDeleteModal = ref(false)
 const deletingItem = ref<Product | null>(null)
 const deleting = ref(false)
 
-const form = ref({
+const productFormDefaults = {
   code: '',
   name: '',
   description: '',
@@ -299,11 +320,19 @@ const form = ref({
   uom: 'pcs',
   cost: 0,
   is_active: true,
-  image_url: '' as string | null, // Current image URL
-})
+  image_url: null as string | null,
+  initial_qty: 0,
+  location_id: null as number | null,
+}
+const productCache = useFormCache('product', productFormDefaults)
+const form = ref(productCache.fresh())
+watch(form, (val) => { if (!editingProduct.value) productCache.persist(val) }, { deep: true })
+
+const locations = computed(() => masterStore.locations)
 
 const selectedFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
+const imageCleared = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 // Computed
@@ -364,53 +393,46 @@ async function fetchProducts() {
 
 function handleImageSelect(event: Event) {
   const input = event.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    const file = input.files[0]
-    selectedFile.value = file
-    
-    // Create preview
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      imagePreview.value = e.target?.result as string
-    }
-    reader.readAsDataURL(file)
-  }
+  if (!input.files || !input.files[0]) return
+  const file = input.files[0]
+
+  selectedFile.value = file
+  imageCleared.value = false
+
+  const reader = new FileReader()
+  reader.onload = (e) => { imagePreview.value = e.target?.result as string }
+  reader.readAsDataURL(file)
 }
 
 function clearImage() {
   selectedFile.value = null
   imagePreview.value = null
+  imageCleared.value = true
   form.value.image_url = null
   if (fileInput.value) {
     fileInput.value.value = ''
   }
 }
 
-function openModal(product?: Product) {
+async function openModal(product?: Product) {
   selectedFile.value = null
   imagePreview.value = null
+  imageCleared.value = false
   if (fileInput.value) fileInput.value.value = ''
 
   if (product) {
     editingProduct.value = product
-    form.value = { 
-        ...product, 
-        description: product.description ?? '',
-        image_url: product.image_url ?? null
+    form.value = {
+      ...productFormDefaults,
+      ...product,
+      description: product.description ?? '',
+      image_url: product.image_url ?? null,
+      initial_qty: 0,
+      location_id: null,
     }
   } else {
     editingProduct.value = null
-    form.value = {
-      code: '',
-      name: '',
-      description: '',
-      type: 'raw',
-      tracking: 'none',
-      uom: 'pcs',
-      cost: 0,
-      is_active: true,
-      image_url: null,
-    }
+    form.value = productCache.load()
   }
   showModal.value = true
 }
@@ -432,6 +454,20 @@ async function saveProduct() {
 
     if (selectedFile.value) {
       formData.append('image', selectedFile.value)
+    } else if (imageCleared.value) {
+      formData.append('image_url', '')
+    } else if (form.value.image_url) {
+      formData.append('image_url', form.value.image_url)
+    }
+
+    if (!editingProduct.value) {
+      if (!form.value.location_id) {
+        toast.error('Please select a location.')
+        saving.value = false
+        return
+      }
+      formData.append('location_id', String(form.value.location_id))
+      formData.append('initial_qty', String(form.value.initial_qty ?? 0))
     }
 
     if (editingProduct.value) {
@@ -448,13 +484,23 @@ async function saveProduct() {
       })
       toast.success('Product created successfully')
     }
+    productCache.clear()
     showModal.value = false
-    await masterStore.fetchProducts(true) // Force refresh cache
+    await masterStore.fetchProducts(true)
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to save product')
   } finally {
     saving.value = false
   }
+}
+
+function clearProductForm() {
+  productCache.clear()
+  selectedFile.value = null
+  imagePreview.value = null
+  imageCleared.value = false
+  if (fileInput.value) fileInput.value.value = ''
+  form.value = productCache.fresh()
 }
 
 function openDetail(product: Product) {
@@ -485,7 +531,7 @@ async function deleteProduct() {
 const route = useRoute()
 
 onMounted(async () => {
-    await fetchProducts()
+    await Promise.all([fetchProducts(), masterStore.fetchLocations()])
     if (route.query.id) {
          const id = Number(route.query.id)
          if (!isNaN(id)) {

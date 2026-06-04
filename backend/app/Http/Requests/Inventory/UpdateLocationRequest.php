@@ -3,27 +3,28 @@
 namespace App\Http\Requests\Inventory;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateLocationRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
             'name' => 'sometimes|string|max:255',
-            'code' => 'nullable|string|max:50|unique:locations,code,' . $this->route('location')->id,
+            'code' => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('locations')->ignore($this->route('location'))->where(function ($query) {
+                    return $query->where('organization_id', $this->user()->organization_id)
+                                 ->whereNull('deleted_at');
+                }),
+            ],
             'type' => 'in:warehouse,production,scrap',
         ];
     }

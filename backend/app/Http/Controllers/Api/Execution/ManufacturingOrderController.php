@@ -67,7 +67,8 @@ class ManufacturingOrderController extends BaseController
             $query->where('scheduled_start', '<=', $request->end_date);
         }
 
-        $counts = $this->getStatusCounts(ManufacturingOrder::query(), 'status');
+        // Clone the filtered query so counts reflect the same search/date constraints as the list
+        $counts = $this->getStatusCounts(clone $query, 'status');
 
         return $this->respondWithPagination(
             $query->paginate($request->get('per_page', 10)),
@@ -149,7 +150,9 @@ class ManufacturingOrderController extends BaseController
     public function calendar(GetCalendarRequest $request)
     {
         $validated = $request->validated();
-        $cacheKey = "calendar_mos_{$validated['start']}_{$validated['end']}";
+        // Include org_id in the key — without it, orgs share cached results (data leak)
+        $orgId = auth()->user()->organization_id;
+        $cacheKey = "calendar_mos_{$orgId}_{$validated['start']}_{$validated['end']}";
 
         $orders = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($validated) {
             return ManufacturingOrder::with(['product:id,name,code', 'bom:id,code'])
@@ -209,7 +212,11 @@ class ManufacturingOrderController extends BaseController
     {
         $validated = $request->validated();
 
-        $workCenters = \App\Models\WorkCenter::all();
+        // Eager-load work orders for the requested date window so calculateCapacity()
+        // reads from already-loaded collections instead of firing one query per work center.
+        $workCenters = \App\Models\WorkCenter::with(['workOrders' => function ($q) use ($validated) {
+            $q->whereBetween('scheduled_start', [$validated['start'], $validated['end']]);
+        }])->get();
 
         $capacities = $workCenters->map(function ($wc) use ($validated) {
             return $this->schedulerService->calculateCapacity(

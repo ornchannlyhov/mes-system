@@ -25,18 +25,9 @@ export function useUtils() {
         if (!url) return ''
         if (url.startsWith('http')) return url
 
-        let path = url
-        // Ensure path starts with /
-        if (!path.startsWith('/')) {
-            path = `/${path}`
-        }
-
-        // Add /storage prefix if likely a local file and missing it
-        if (!path.startsWith('/storage') && !path.startsWith('/images')) {
-            path = `/storage${path}`
-        }
-
-        return (config.public.apiBase as string).replace(/\/api\/?$/, '') + path
+        // Strip any accidental /storage prefix then re-apply consistently
+        const normalized = url.replace(/^\/?storage\//, '')
+        return (config.public.apiBase as string).replace(/\/api\/?$/, '') + `/storage/${normalized}`
     }
 
     /**

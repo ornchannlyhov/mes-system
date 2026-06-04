@@ -22,16 +22,29 @@ class RolePermissionSeeder extends Seeder
         }
 
         // 2. Create Roles
-        // System role (no organization)
+        // is_system = true marks roles that belong to no organization and must not appear
+        // in any org's role management UI. organization_id = null is shared by both
+        // system roles and global template roles, so is_system is the discriminator.
+
         $superadminRole = \App\Models\Role::firstOrCreate(
             ['name' => 'superadmin'],
             ['label' => 'System Administrator', 'is_system' => true, 'organization_id' => null]
         );
 
-        // Organization roles
-        $adminRole = \App\Models\Role::firstOrCreate(['name' => 'admin'], ['label' => 'Administrator']);
-        $managerRole = \App\Models\Role::firstOrCreate(['name' => 'manager'], ['label' => 'Manager']);
-        $operatorRole = \App\Models\Role::firstOrCreate(['name' => 'operator'], ['label' => 'Operator']);
+        // Global template roles — visible to all orgs (organization_id = null + allowGlobalRecords),
+        // but is_system = false so they appear in org role lists and can be customised.
+        $adminRole = \App\Models\Role::firstOrCreate(
+            ['name' => 'admin'],
+            ['label' => 'Administrator', 'is_system' => false, 'organization_id' => null]
+        );
+        $managerRole = \App\Models\Role::firstOrCreate(
+            ['name' => 'manager'],
+            ['label' => 'Manager', 'is_system' => false, 'organization_id' => null]
+        );
+        $operatorRole = \App\Models\Role::firstOrCreate(
+            ['name' => 'operator'],
+            ['label' => 'Operator', 'is_system' => false, 'organization_id' => null]
+        );
 
         // 3. Assign Permissions
 

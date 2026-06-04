@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\Traceability\SerialController;
 use App\Http\Controllers\Api\Common\UploadController;
 use App\Http\Controllers\Api\Common\HealthController;
 use App\Http\Controllers\Api\Admin\RoleController;
+use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\Maintenance\MaintenanceLogController;
 
 use App\Http\Controllers\Api\Reporting\CostEntryController;
@@ -90,11 +91,11 @@ Route::middleware(['api.key', 'auth:sanctum', 'throttle:api', 'prevent.superadmi
     Route::put('/roles/{role}', [RoleController::class, 'update']);
     Route::delete('/roles/{role}', [RoleController::class, 'destroy']);
 
-    Route::get('/users', [AuthController::class, 'index']);
-    Route::post('/users', [AuthController::class, 'store']);
-    Route::put('/users/{user}/role', [AuthController::class, 'updateRole']);
-    Route::put('/users/{user}', [AuthController::class, 'update']);
-    Route::delete('/users/{user}', [AuthController::class, 'destroy']);
+    Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::put('/users/{user}/role', [UserController::class, 'updateRole']);
+    Route::put('/users/{user}', [UserController::class, 'update']);
+    Route::delete('/users/{user}', [UserController::class, 'destroy']);
 
 
     // File Upload

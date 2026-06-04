@@ -164,8 +164,8 @@
               <td>{{ op.work_center?.name || 'N/A' }}</td>
               <td>{{ op.duration_minutes }} min</td>
               <td>
-                <span v-if="op.producesBomLine?.product" class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                  {{ op.producesBomLine.product.name }} ({{ op.producesBomLine.quantity }})
+                <span v-if="op.produces_bom_line?.product" class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                  {{ op.produces_bom_line.product.name }} ({{ op.produces_bom_line.quantity }})
                 </span>
                 <span v-else class="text-xs bg-green-50 text-green-700 px-2 py-1 rounded">
                   {{ bom?.product?.name || 'Finished Product' }}
@@ -206,7 +206,7 @@
 
     <!-- Component SlideOver (Nested) -->
     <UiSlideOver v-model="showLineModal" :title="editingLine ? 'Edit Component' : 'Add Component'" width="sm:w-[400px]">
-      <form @submit.prevent="saveLine" class="space-y-6">
+      <form id="bom-line-form" @submit.prevent="saveLine" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Product</label>
           <select v-model="lineForm.product_id" class="input" required>
@@ -222,17 +222,20 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Sequence</label>
           <input v-model.number="lineForm.sequence" type="number" min="0" class="input" />
         </div>
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showLineModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="savingLine">{{ savingLine ? 'Saving...' : 'Save' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editingLine" type="button" @click="clearLineForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showLineModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="bom-line-form" class="btn-primary" :disabled="savingLine">{{ savingLine ? 'Saving...' : 'Save' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
 
     <!-- Operation SlideOver (Nested) -->
     <UiSlideOver v-model="showOperationModal" :title="editingOperation ? 'Edit Operation' : 'Add Operation'" width="sm:w-[400px]">
-      <form @submit.prevent="saveOperation" class="space-y-6">
+      <form id="bom-operation-form" @submit.prevent="saveOperation" class="space-y-6">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Operation Name</label>
           <input v-model="operationForm.name" type="text" class="input" required placeholder="e.g., Assembly" />
@@ -305,11 +308,14 @@
 
 
 
-        <div class="flex justify-end gap-3 mt-6">
-          <button type="button" @click="showOperationModal = false" class="btn-ghost">Cancel</button>
-          <button type="submit" class="btn-primary" :disabled="savingOperation || uploading">{{ savingOperation ? 'Saving...' : 'Save' }}</button>
-        </div>
       </form>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button v-if="!editingOperation" type="button" @click="clearOpForm" class="btn-ghost">Clear</button>
+          <button v-else type="button" @click="showOperationModal = false" class="btn-ghost">Cancel</button>
+          <button type="submit" form="bom-operation-form" class="btn-primary" :disabled="savingOperation || uploading">{{ savingOperation ? 'Saving...' : 'Save' }}</button>
+        </div>
+      </template>
     </UiSlideOver>
 
     <!-- Delete Modals -->
@@ -381,21 +387,19 @@ const paginatedOperations = computed(() => {
 const showLineModal = ref(false)
 const editingLine = ref<BomLine | null>(null)
 const savingLine = ref(false)
-const lineForm = ref({ product_id: null as number | null, quantity: 1, sequence: 0 })
+const lineFormDefaults = { product_id: null as number | null, quantity: 1, sequence: 0 }
+const lineCache = useFormCache('bom-line', lineFormDefaults)
+const lineForm = ref(lineCache.fresh())
+watch(lineForm, (val) => { if (!editingLine.value) lineCache.persist(val) }, { deep: true })
 
 const showOperationModal = ref(false)
 const editingOperation = ref<Operation | null>(null)
 const savingOperation = ref(false)
 const uploading = ref(false)
-const operationForm = ref({
-  name: '',
-  work_center_id: null as number | null,
-  duration_minutes: 10,
-  sequence: 0,
-  needs_quality_check: false,
-  instruction_file_url: '' as string | null | undefined,
-  produces_bom_line_id: null as number | null,
-})
+const opFormDefaults = { name: '', work_center_id: null as number | null, duration_minutes: 10, sequence: 0, needs_quality_check: false, instruction_file_url: '' as string | null | undefined, produces_bom_line_id: null as number | null }
+const opCache = useFormCache('bom-operation', opFormDefaults)
+const operationForm = ref(opCache.fresh())
+watch(operationForm, (val) => { if (!editingOperation.value) opCache.persist(val) }, { deep: true })
 
 // Delete State
 const showDeleteLineModal = ref(false)
@@ -446,10 +450,13 @@ function openLineModal(line?: BomLine) {
     lineForm.value = { product_id: line.product_id, quantity: Number(line.quantity), sequence: line.sequence }
   } else {
     editingLine.value = null
-    lineForm.value = { product_id: null, quantity: 1, sequence: lines.value.length }
+    lineForm.value = lineCache.load()
+    if (!lineForm.value.sequence) lineForm.value.sequence = lines.value.length
   }
   showLineModal.value = true
 }
+
+function clearLineForm() { lineCache.clear(); lineForm.value = { ...lineCache.fresh(), sequence: lines.value.length } }
 
 async function saveLine() {
   savingLine.value = true
@@ -460,6 +467,7 @@ async function saveLine() {
     } else {
       await $api(`/boms/${props.bomId}/lines`, { method: 'POST', body: lineForm.value })
       toast.success('Component added')
+      lineCache.clear()
     }
     showLineModal.value = false
     await fetchData()
@@ -479,9 +487,20 @@ async function deleteLine() {
   if (!deletingLineItem.value) return
   deletingLine.value = true
   try {
-    await $api(`/boms/${props.bomId}/lines/${deletingLineItem.value.id}`, { method: 'DELETE' })
+    const deletedId = deletingLineItem.value.id
+    await $api(`/boms/${props.bomId}/lines/${deletedId}`, { method: 'DELETE' })
     toast.success('Component removed')
     showDeleteLineModal.value = false
+
+    // Clear stale produces_bom_line_id from operation form and its cache
+    if (operationForm.value.produces_bom_line_id === deletedId) {
+      operationForm.value.produces_bom_line_id = null
+    }
+    const cachedOp = opCache.load()
+    if (cachedOp.produces_bom_line_id === deletedId) {
+      opCache.persist({ ...cachedOp, produces_bom_line_id: null })
+    }
+
     await fetchData()
   } catch (e: any) {
     toast.error(e.data?.message || 'Failed to delete component')
@@ -505,19 +524,13 @@ function openOperationModal(op?: Operation) {
     }
   } else {
     editingOperation.value = null
-    operationForm.value = {
-      name: '',
-      work_center_id: null,
-      duration_minutes: 10,
-      sequence: operations.value.length,
-      needs_quality_check: false,
-      instruction_file_url: '',
-      produces_bom_line_id: null,
-    }
+    operationForm.value = opCache.load()
+    if (!operationForm.value.sequence) operationForm.value.sequence = operations.value.length
   }
-
   showOperationModal.value = true
 }
+
+function clearOpForm() { opCache.clear(); operationForm.value = { ...opCache.fresh(), sequence: operations.value.length } }
 
 
 async function handleFileUpload(event: Event) {
@@ -550,6 +563,11 @@ async function handleFileUpload(event: Event) {
 
 async function saveOperation() {
   savingOperation.value = true
+  // Guard: null out produces_bom_line_id if it no longer belongs to this BOM
+  if (operationForm.value.produces_bom_line_id !== null &&
+      !lines.value.some(l => l.id === operationForm.value.produces_bom_line_id)) {
+    operationForm.value.produces_bom_line_id = null
+  }
   try {
     if (editingOperation.value) {
       await $api(`/boms/${props.bomId}/operations/${editingOperation.value.id}`, { method: 'PUT', body: operationForm.value })
@@ -557,6 +575,7 @@ async function saveOperation() {
     } else {
       await $api(`/boms/${props.bomId}/operations`, { method: 'POST', body: operationForm.value })
       toast.success('Operation added')
+      opCache.clear()
     }
     showOperationModal.value = false
     await fetchData()
